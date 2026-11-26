@@ -1,9 +1,11 @@
 import React from 'react';
 import {
   Activity,
+  Check,
   Command,
   Cpu,
   DollarSign,
+  Download,
   Gauge,
   Globe,
   Moon,
@@ -29,6 +31,8 @@ interface TopBarProps {
   runtimeMode: RuntimeMode;
   clusterOnline: boolean;
   onOpenCommandPalette: () => void;
+  onExportAuditBundle: () => void;
+  auditExportedRecently: boolean;
   branch: BranchSummary;
   activeBranchId: string;
 }
@@ -46,6 +50,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   runtimeMode,
   clusterOnline,
   onOpenCommandPalette,
+  onExportAuditBundle,
+  auditExportedRecently,
   branch,
   activeBranchId,
 }) => {
@@ -60,10 +66,10 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--vg-border)] bg-[var(--vg-panel)]/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5">
         {/* Brand Identity */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-sky-400/35 bg-sky-500/10">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-sky-400/35 bg-sky-500/10">
             <svg width="20" height="20" viewBox="0 0 64 64" fill="none" aria-hidden="true">
               <path
                 d="M14 18L32 48L50 18"
@@ -79,37 +85,43 @@ export const TopBar: React.FC<TopBarProps> = ({
             </svg>
           </div>
           <div className="leading-tight">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="font-display text-sm font-bold tracking-[0.12em] text-[var(--vg-text)]">
                 VERDICT GRAPH
+              </span>
+              <span
+                data-testid="version-badge"
+                className="rounded border border-emerald-400/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-400"
+              >
+                v2.0
               </span>
               <span className="rounded border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-sky-400">
                 {activeBranchId.toUpperCase()}
               </span>
             </div>
-            <p className="font-mono text-[10px] tracking-[0.08em] text-[var(--vg-text-muted)]">
+            <p className="hidden font-mono text-[10px] tracking-[0.08em] text-[var(--vg-text-muted)] sm:block">
               {t.brandSubtitle}
             </p>
           </div>
         </div>
 
         {/* Live FinOps & Quality Ticker */}
-        <div className="hidden items-center gap-1.5 rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1 lg:flex">
-          <div className="flex items-center gap-1.5 pr-2.5 border-r border-[var(--vg-border)]">
+        <div className="hidden items-center gap-1.5 rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1 xl:flex">
+          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] pr-2.5">
             <DollarSign className="h-3.5 w-3.5 text-sky-400" />
             <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsCost}</span>
             <span className="font-mono text-xs font-semibold text-[var(--vg-text)]" data-testid="ticker-cost">
               ${branch.total_cost_usd.toFixed(4)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 border-r border-[var(--vg-border)]">
+          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] px-2.5">
             <Cpu className="h-3.5 w-3.5 text-sky-400" />
             <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsTokens}</span>
             <span className="font-mono text-xs font-semibold text-[var(--vg-text)]" data-testid="ticker-tokens">
               {totalTokens.toLocaleString()}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 border-r border-[var(--vg-border)]">
+          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] px-2.5">
             <Activity className="h-3.5 w-3.5 text-sky-400" />
             <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsLatency}</span>
             <span className="font-mono text-xs font-semibold text-[var(--vg-text)]">
@@ -126,10 +138,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Runtime Badge */}
           <div
-            className="hidden items-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 font-mono text-[10px] xl:flex"
+            className="hidden items-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 font-mono text-[10px] 2xl:flex"
             title={clusterOnline ? t.clusterOnline : t.clusterOffline}
           >
             <span
@@ -151,7 +163,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
 
           {/* Speed Selector */}
-          <div className="hidden items-center gap-0.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] p-0.5 sm:flex">
+          <div className="hidden items-center gap-0.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] p-0.5 md:flex">
             <Gauge className="mx-1.5 h-3.5 w-3.5 text-[var(--vg-text-dim)]" />
             {SPEED_OPTIONS.map((opt) => (
               <button
@@ -168,6 +180,27 @@ export const TopBar: React.FC<TopBarProps> = ({
               </button>
             ))}
           </div>
+
+          {/* 1-Click Export Audit Bundle */}
+          <button
+            type="button"
+            onClick={onExportAuditBundle}
+            data-testid="topbar-export-audit-btn"
+            className="hidden items-center gap-1.5 rounded border border-sky-400/40 bg-sky-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-sky-400 transition-colors hover:bg-sky-500/20 sm:flex"
+            title="Download signed JSON trace & OpenTelemetry OTLP spans"
+          >
+            {auditExportedRecently ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-emerald-400">{t.exportAuditSaved}</span>
+              </>
+            ) : (
+              <>
+                <Download className="h-3.5 w-3.5" />
+                <span>{t.exportAuditBtn}</span>
+              </>
+            )}
+          </button>
 
           {/* Bilingual EN/VI Toggle */}
           <button
@@ -198,7 +231,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             type="button"
             onClick={onOpenCommandPalette}
             data-testid="cmd-k-trigger"
-            className="flex items-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--vg-text-muted)] transition-colors hover:border-sky-400/50 hover:text-[var(--vg-text)]"
+            className="flex items-center gap-1 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 font-mono text-[11px] text-[var(--vg-text-muted)] transition-colors hover:border-sky-400/50 hover:text-[var(--vg-text)]"
           >
             <Command className="h-3 w-3" />
             <span>K</span>

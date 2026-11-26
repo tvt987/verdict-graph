@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-display: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
@@ -92,30 +94,85 @@ body {
 
 .edge-flow-active {
   stroke-dasharray: 6 6;
-  animation: opticalDash 0.85s linear infinite;
+  animation: opticalDash 0.8s linear infinite;
 }
 
 .edge-flow-cyclic {
   stroke-dasharray: 5 5;
-  animation: opticalDash 1.1s linear infinite;
+  animation: opticalDash 0.95s linear infinite;
 }
 
 @keyframes nodePulseRing {
   0%,
   100% {
-    opacity: 0.7;
+    opacity: 0.78;
     transform: scale(1);
   }
   50% {
-    opacity: 0.2;
-    transform: scale(1.03);
+    opacity: 0.18;
+    transform: scale(1.032);
   }
 }
 
 .node-halo-pulse {
   transform-box: fill-box;
   transform-origin: center;
-  animation: nodePulseRing 1.8s ease-in-out infinite;
+  animation: nodePulseRing 1.75s ease-in-out infinite;
+}
+
+@keyframes nodePulseOuter {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1.015);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scale(1.055);
+  }
+}
+
+.node-halo-outer {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nodePulseOuter 2.2s ease-in-out infinite;
+}
+
+/* Precision range slider for FinOps scale */
+.vg-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--vg-border);
+  outline: none;
+}
+
+.vg-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid var(--vg-panel);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.55);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+.vg-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.vg-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #38bdf8;
+  border: 2px solid var(--vg-panel);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.55);
+  cursor: pointer;
 }
 
 .font-display {

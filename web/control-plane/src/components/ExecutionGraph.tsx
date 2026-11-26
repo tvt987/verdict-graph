@@ -1,135 +1,33 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Maximize2,
   Minus,
   Plus,
   RotateCcw,
+  ShieldAlert,
+  X,
 } from 'lucide-react';
 import type { ControlPlaneRun, GraphEdgeDef, NodeId, NodeMeta } from '../types/protocol';
 import type { Translations } from '../i18n/translations';
+import type { RedTeamSimulationResult } from '../engine/redTeamClassifier';
 import { GRAPH_EDGES, GRAPH_NODES } from '../engine/scenarios';
 import { getLatestNodeCheckpoint } from '../engine/protocolEngine';
+import {
+  GRAPH_VIEWBOX,
+  NODE_H,
+  NODE_W,
+  classifyNodeLatencyHeat,
+  getEdgeGeometry,
+  sampleEdgePacketTrain,
+} from '../engine/graphGeometry';
 
 interface ExecutionGraphProps {
   t: Translations;
   run: ControlPlaneRun;
   selectedNodeId: NodeId | null;
   onSelectNode: (nodeId: NodeId) => void;
-}
-
-const NODE_W = 246;
-const NODE_H = 104;
-
-function getEdgePath(edge: GraphEdgeDef, nodeMap: Record<NodeId, NodeMeta>): { d: string; labelX: number; labelY: number } {
-  const src = nodeMap[edge.from];
-  const dst = nodeMap[edge.to];
-
-  // Special bespoke arcs for cyclic and cross-tier edges so zero labels collide!
-  if (edge.id === 'e-guard-plan') {
-    // Cyclic arc looping up along the left margin from 04 -> 01
-    const sx = src.x + 26;
-    const sy = src.y;
-    const tx = dst.x + 26;
-    const ty = dst.y + NODE_H;
-    return {
-      d: `M ${sx} ${sy} C ${sx - 56} ${sy - 40}, ${tx - 56} ${ty + 40}, ${tx} ${ty}`,
-      labelX: sx - 52,
-      labelY: (sy + ty) / 2,
-    };
-  }
-
-  if (edge.id === 'e-hitl-a2a') {
-    // Cyclic arc from 05 top-right -> 03 bottom-left
-    const sx = src.x + NODE_W - 24;
-    const sy = src.y;
-    const tx = dst.x + 42;
-    const ty = dst.y + NODE_H;
-    return {
-      d: `M ${sx} ${sy} C ${sx + 24} ${sy - 48}, ${tx - 36} ${ty + 42}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2 + 28,
-      labelY: (sy + ty) / 2 - 4,
-    };
-  }
-
-  if (edge.id === 'e-synth-mcp') {
-    // Time-travel fork arc looping cleanly across the top from 06 -> 02
-    const sx = src.x + NODE_W - 18;
-    const sy = src.y;
-    const tx = dst.x + NODE_W / 2;
-    const ty = dst.y;
-    return {
-      d: `M ${sx} ${sy} C ${sx + 48} ${sy - 190}, ${tx + 40} ${ty - 64}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2 + 12,
-      labelY: 19,
-    };
-  }
-
-  if (edge.id === 'e-a2a-guard') {
-    // Clean sweeping diagonal from 03 bottom -> 04 top-right
-    const sx = src.x + 18;
-    const sy = src.y + NODE_H;
-    const tx = dst.x + NODE_W - 22;
-    const ty = dst.y;
-    const midY = (sy + ty) / 2;
-    return {
-      d: `M ${sx} ${sy} C ${sx - 40} ${midY + 8}, ${tx + 60} ${midY - 8}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2 + 44,
-      labelY: midY - 6,
-    };
-  }
-
-  if (edge.id === 'e-mcp-guard') {
-    // Clean curve from 02 bottom-left -> 04 top-center
-    const sx = src.x + 42;
-    const sy = src.y + NODE_H;
-    const tx = dst.x + NODE_W * 0.56;
-    const ty = dst.y;
-    const midY = (sy + ty) / 2;
-    return {
-      d: `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2 - 14,
-      labelY: midY + 4,
-    };
-  }
-
-  if (edge.id === 'e-plan-synth') {
-    // Clean bypass curve when Planner re-routes sanitized context straight to Synthesizer
-    const sx = src.x + NODE_W - 24;
-    const sy = src.y + NODE_H;
-    const tx = dst.x + 32;
-    const ty = dst.y;
-    const midY = (sy + ty) / 2;
-    return {
-      d: `M ${sx} ${sy} C ${sx + 90} ${midY + 14}, ${tx - 90} ${midY - 14}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2 + 24,
-      labelY: midY + 16,
-    };
-  }
-
-  if (edge.id === 'e-guard-synth') {
-    // Lower bypass arc beneath HITL gate from 04 bottom -> 06 bottom
-    const sx = src.x + NODE_W / 2;
-    const sy = src.y + NODE_H;
-    const tx = dst.x + NODE_W / 2;
-    const ty = dst.y + NODE_H;
-    return {
-      d: `M ${sx} ${sy} C ${sx + 70} ${sy + 44}, ${tx - 70} ${ty + 44}, ${tx} ${ty}`,
-      labelX: (sx + tx) / 2,
-      labelY: sy + 39,
-    };
-  }
-
-  // Standard horizontal neighbor edge (same tier)
-  const sx = src.x + NODE_W;
-  const sy = src.y + NODE_H / 2;
-  const tx = dst.x;
-  const ty = dst.y + NODE_H / 2;
-  const dx = (tx - sx) * 0.5;
-  return {
-    d: `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`,
-    labelX: (sx + tx) / 2,
-    labelY: sy - 16,
-  };
+  redTeamOverlay?: RedTeamSimulationResult | null;
+  onClearRedTeamOverlay?: () => void;
 }
 
 function toneHex(tone?: GraphEdgeDef['tone']): string {
@@ -150,11 +48,30 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
   run,
   selectedNodeId,
   onSelectNode,
+  redTeamOverlay = null,
+  onClearRedTeamOverlay,
 }) => {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragOrigin, setDragOrigin] = useState({ x: 0, y: 0 });
+  const [animPhase, setAnimPhase] = useState(0.28);
+
+  // Smooth 60fps photonic packet animation loop
+  useEffect(() => {
+    let rafId = 0;
+    let lastTs = performance.now();
+
+    const tick = (now: number) => {
+      const dtSec = Math.min(0.08, (now - lastTs) / 1000);
+      lastTs = now;
+      setAnimPhase((prev) => (prev + dtSec * 0.42) % 1);
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
 
   const nodeMap = useMemo(() => {
     return GRAPH_NODES.reduce(
@@ -165,6 +82,17 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
       {} as Record<NodeId, NodeMeta>
     );
   }, []);
+
+  const edgeGeometries = useMemo(() => {
+    return GRAPH_EDGES.map((edge) => ({
+      edge,
+      geometry: getEdgeGeometry(edge, nodeMap),
+    }));
+  }, [nodeMap]);
+
+  const activeBranch = run.branches[run.active_branch_id];
+  const branchTotalLatency = Math.max(1, activeBranch?.total_latency_ms ?? 1);
+  const redTeamBlocked = Boolean(redTeamOverlay && !redTeamOverlay.passed);
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if ((e.target as HTMLElement).closest('[data-graph-node="true"]')) return;
@@ -184,31 +112,83 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
     setPan({ x: 0, y: 0 });
   };
 
+  // Count how many edges currently carry live photonic packets
+  const activePacketEdges = edgeGeometries.filter(({ edge }) => {
+    const isRedTeamReroute =
+      redTeamBlocked && (edge.id === 'e-guard-plan' || edge.id === 'e-plan-synth');
+    return (
+      isRedTeamReroute ||
+      run.active_edge_id === edge.id ||
+      run.visited_edges.includes(edge.id)
+    );
+  }).length;
+
   return (
     <section className="vg-panel relative overflow-hidden rounded-lg">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--vg-border)] px-3.5 py-2">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-sky-400" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                redTeamBlocked
+                  ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
+                  : 'bg-sky-400 shadow-[0_0_8px_#38bdf8]'
+              }`}
+            />
             <h2 className="font-mono text-[11px] font-semibold tracking-[0.12em] text-[var(--vg-text)]">
               {t.graphTitle}
             </h2>
+            <span className="hidden rounded border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-400 sm:inline-flex">
+              {activePacketEdges} ACTIVE CHANNELS · PHOTONIC TELEMETRY
+            </span>
           </div>
           <p className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.graphHint}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Legend */}
-          <div className="hidden items-center gap-3 font-mono text-[9px] text-[var(--vg-text-muted)] md:flex">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Red-Team Active Alert Pill */}
+          {redTeamOverlay && (
+            <div
+              data-testid="graph-redteam-pill"
+              className={`flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                redTeamBlocked
+                  ? 'border-rose-400/60 bg-rose-500/15 text-rose-300'
+                  : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-300'
+              }`}
+            >
+              <ShieldAlert className="h-3 w-3" />
+              <span>
+                {redTeamBlocked
+                  ? `QUARANTINED (${redTeamOverlay.risk_score.toFixed(2)}) · 04 -> 01`
+                  : `RED-TEAM CLEAN (${redTeamOverlay.risk_score.toFixed(2)})`}
+              </span>
+              {onClearRedTeamOverlay && (
+                <button
+                  type="button"
+                  onClick={onClearRedTeamOverlay}
+                  className="ml-0.5 rounded p-0.5 hover:bg-black/20"
+                  aria-label="Clear Red-Team Graph Overlay"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Heat & Edge Legend */}
+          <div className="hidden items-center gap-2.5 font-mono text-[9px] text-[var(--vg-text-muted)] xl:flex">
             <span className="flex items-center gap-1">
-              <span className="h-1.5 w-3 rounded-full bg-sky-400" /> FORWARD
+              <span className="h-1.5 w-2.5 rounded-full bg-emerald-400" /> &lt;100ms
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-1.5 w-3 rounded-full bg-rose-500" /> VIOLATION LOOP
+              <span className="h-1.5 w-2.5 rounded-full bg-sky-400" /> 100-200ms
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-1.5 w-3 rounded-full bg-amber-400" /> HITL / CANARY
+              <span className="h-1.5 w-2.5 rounded-full bg-amber-400" /> &gt;200ms
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-2.5 rounded-full bg-rose-500" /> BLOCKED
             </span>
           </div>
 
@@ -249,11 +229,11 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
         </div>
       </div>
 
-      {/* Interactive SVG Canvas */}
-      <div className="relative h-[376px] w-full select-none bg-[var(--vg-bg)] sm:h-[404px]">
+      {/* Interactive Photonic SVG Canvas */}
+      <div className="relative h-[386px] w-full select-none bg-[var(--vg-bg)] sm:h-[418px]">
         <svg
           data-testid="execution-graph-svg"
-          viewBox="0 0 1090 416"
+          viewBox={`0 0 ${GRAPH_VIEWBOX.width} ${GRAPH_VIEWBOX.height}`}
           className={`h-full w-full ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
@@ -270,8 +250,15 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
               />
               <circle cx="0" cy="0" r="1" fill="var(--vg-grid-dot)" />
             </pattern>
-            <filter id="vg-glow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
+            <filter id="vg-glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="3.4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="vg-packet-glow" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="4.2" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -334,28 +321,59 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
             </marker>
           </defs>
 
-          <rect width="1090" height="416" fill="url(#vg-tech-grid)" />
+          <rect width={GRAPH_VIEWBOX.width} height={GRAPH_VIEWBOX.height} fill="url(#vg-tech-grid)" />
 
           <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-            {/* Render Edges */}
-            {GRAPH_EDGES.map((edge) => {
-              const { d, labelX, labelY } = getEdgePath(edge, nodeMap);
-              const isActive = run.active_edge_id === edge.id;
+            {/* Render Curved Bezier Edges + Live Photonic Packets */}
+            {edgeGeometries.map(({ edge, geometry }, edgeIdx) => {
+              const { d, curve, labelX, labelY } = geometry;
+              const isRedTeamReroute = redTeamBlocked && edge.id === 'e-guard-plan';
+              const isRedTeamSafePath = redTeamBlocked && edge.id === 'e-plan-synth';
+              const isActive =
+                run.active_edge_id === edge.id || isRedTeamReroute || isRedTeamSafePath;
               const isVisited = run.visited_edges.includes(edge.id);
-              const color = toneHex(edge.tone);
+              const color = isRedTeamReroute ? '#F43F5E' : toneHex(edge.tone);
               const markerId =
-                isActive || isVisited
-                  ? `url(#arrow-${edge.tone ?? 'cyan'})`
-                  : 'url(#arrow-muted)';
+                isRedTeamReroute
+                  ? 'url(#arrow-crimson)'
+                  : isActive || isVisited
+                    ? `url(#arrow-${edge.tone ?? 'cyan'})`
+                    : 'url(#arrow-muted)';
+
+              const hasPackets = isActive || isVisited;
+              const edgePhase = (animPhase * (isRedTeamReroute ? 1.55 : isActive ? 1.25 : 0.85) + edgeIdx * 0.17) % 1;
+              const packets = hasPackets
+                ? sampleEdgePacketTrain(
+                    curve,
+                    edgePhase,
+                    isActive || edge.cyclic ? 2 : 1,
+                    isActive ? 5 : 3,
+                    isActive ? 0.03 : 0.025,
+                    isActive ? 4.3 : 3.1
+                  )
+                : [];
 
               return (
-                <g key={edge.id}>
+                <g key={edge.id} data-edge-id={edge.id}>
+                  {/* Subtle under-glow conduit on active or red-team edges */}
+                  {isActive && (
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={5.5}
+                      opacity={0.16}
+                      filter="url(#vg-glow)"
+                    />
+                  )}
+
+                  {/* Primary Bezier Wire */}
                   <path
                     id={`path-${edge.id}`}
                     d={d}
                     fill="none"
                     stroke={isActive || isVisited ? color : 'rgba(148,163,184,0.2)'}
-                    strokeWidth={isActive ? 2.4 : isVisited ? 1.8 : 1.15}
+                    strokeWidth={isActive ? 2.4 : isVisited ? 1.75 : 1.15}
                     strokeDasharray={edge.cyclic ? '5 4' : undefined}
                     className={
                       isActive
@@ -365,41 +383,56 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                         : undefined
                     }
                     markerEnd={markerId}
-                    opacity={isActive ? 1 : isVisited ? 0.85 : 0.45}
+                    opacity={isActive ? 1 : isVisited ? 0.84 : 0.4}
                   />
 
-                  {/* Optical Signal Packet traveling along active or visited cyclic edge */}
-                  {(isActive || (isVisited && edge.cyclic)) && (
-                    <circle r={isActive ? 4.2 : 3} fill={color} filter="url(#vg-glow)">
-                      <animateMotion
-                        dur={edge.cyclic ? '1.6s' : '1.15s'}
-                        repeatCount="indefinite"
-                        path={d}
+                  {/* Glowing Photonic Protocol Packets traveling smoothly along Bezier curve */}
+                  {packets.map((pkt) => (
+                    <g key={pkt.id} data-photonic-packet={pkt.isHead ? edge.id : undefined}>
+                      {pkt.isHead && (
+                        <circle
+                          cx={pkt.x}
+                          cy={pkt.y}
+                          r={pkt.radius * 2.1}
+                          fill={color}
+                          opacity={pkt.opacity * 0.28}
+                          filter="url(#vg-packet-glow)"
+                        />
+                      )}
+                      <circle
+                        cx={pkt.x}
+                        cy={pkt.y}
+                        r={pkt.radius}
+                        fill={pkt.isHead ? '#FFFFFF' : color}
+                        stroke={pkt.isHead ? color : 'none'}
+                        strokeWidth={pkt.isHead ? 1.6 : 0}
+                        opacity={pkt.opacity}
+                        filter={pkt.isHead ? 'url(#vg-packet-glow)' : undefined}
                       />
-                    </circle>
-                  )}
+                    </g>
+                  ))}
 
                   {/* Edge Label Tag */}
                   {(isActive || isVisited || edge.cyclic) && (() => {
-                    const pillW = Math.max(68, Math.round(edge.label.length * 5.8 + 14));
+                    const pillW = Math.max(72, Math.round(edge.label.length * 5.7 + 16));
                     return (
                       <g transform={`translate(${labelX}, ${labelY})`}>
                         <rect
                           x={-pillW / 2}
-                          y={-9}
+                          y={-9.5}
                           width={pillW}
-                          height={17}
-                          rx={3}
+                          height={18}
+                          rx={3.5}
                           fill="var(--vg-panel)"
                           stroke={isActive || isVisited ? color : 'var(--vg-border)'}
-                          strokeWidth={0.85}
+                          strokeWidth={isActive ? 1.15 : 0.85}
                           opacity={isActive || isVisited ? 0.96 : 0.72}
                         />
                         <text
                           textAnchor="middle"
                           y={2.5}
                           fill={isActive || isVisited ? color : 'var(--vg-text-dim)'}
-                          fontSize="8.5"
+                          fontSize="8.3"
                           fontFamily="JetBrains Mono, monospace"
                           fontWeight={isActive ? 700 : 500}
                         >
@@ -412,74 +445,107 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
               );
             })}
 
-            {/* Render 6 Specialized Graph Nodes */}
+            {/* Render 6 Specialized Graph Nodes with Heat Badges & Micro-Progress Bars */}
             {GRAPH_NODES.map((node) => {
               const cp = getLatestNodeCheckpoint(run, node.id);
-              const isActive = run.active_node_id === node.id;
+              const isRedTeamGuardNode = redTeamBlocked && node.id === 'policy_guardrail';
+              const isRedTeamPlannerNode = redTeamBlocked && node.id === 'supervisor_planner';
+              const isActive = run.active_node_id === node.id || isRedTeamPlannerNode;
               const isVisited = run.visited_nodes.includes(node.id);
               const isSelected = selectedNodeId === node.id;
               const isPausedHere =
                 run.status === 'paused_hitl' && node.id === 'hitl_approval_gate';
-              const isReroutedHere =
-                cp?.guardrail_status === 'rerouted' && node.id === 'policy_guardrail';
-              const isWeakGrounded =
-                cp?.groundedness !== undefined && cp.groundedness < 0.8 && node.id === 'grounded_synthesizer';
 
-              let statusColor = '#64748B';
-              let statusLabel = 'IDLE';
-              if (isPausedHere) {
-                statusColor = '#F59E0B';
-                statusLabel = 'PAUSED HITL';
-              } else if (isReroutedHere) {
-                statusColor = '#F43F5E';
-                statusLabel = 'BLOCKED · REROUTED';
-              } else if (isWeakGrounded) {
-                statusColor = '#F59E0B';
-                statusLabel = `WARN · ${cp?.groundedness?.toFixed(2)}`;
-              } else if (isActive) {
-                statusColor = '#38BDF8';
-                statusLabel = 'ACTIVE';
-              } else if (isVisited) {
-                statusColor = '#10B981';
-                statusLabel = 'VERIFIED';
-              }
+              const heat = classifyNodeLatencyHeat(cp, {
+                isPausedHitl: isPausedHere,
+                isRedTeamBlocked: isRedTeamGuardNode,
+              });
+
+              const isWeakGrounded =
+                cp?.groundedness !== undefined &&
+                cp.groundedness < 0.8 &&
+                node.id === 'grounded_synthesizer';
+
+              const accentHex = isRedTeamGuardNode
+                ? '#F43F5E'
+                : isPausedHere
+                  ? '#F59E0B'
+                  : isWeakGrounded
+                    ? '#F59E0B'
+                    : isActive
+                      ? '#38BDF8'
+                      : heat.tier === 'blocked'
+                        ? '#F43F5E'
+                        : isVisited
+                          ? heat.hex
+                          : '#64748B';
 
               const borderColor = isSelected
                 ? '#38BDF8'
-                : isPausedHere
-                  ? '#F59E0B'
-                  : isReroutedHere
-                    ? '#F43F5E'
+                : isRedTeamGuardNode || heat.tier === 'blocked'
+                  ? '#F43F5E'
+                  : isPausedHere
+                    ? '#F59E0B'
                     : isActive
                       ? '#38BDF8'
                       : isVisited
-                        ? 'rgba(16, 185, 129, 0.45)'
+                        ? heat.pillBorder
                         : 'var(--vg-border)';
 
               const totalTok = cp ? cp.input_tokens + cp.output_tokens : 0;
+              const latencySharePct = isRedTeamGuardNode
+                ? 100
+                : isPausedHere
+                  ? 82
+                  : cp
+                    ? Math.max(12, Math.min(100, Math.round((cp.latency_ms / branchTotalLatency) * 100)))
+                    : 0;
+
+              const heatBadgeText = isRedTeamGuardNode
+                ? `BLOCKED · ${redTeamOverlay?.risk_score.toFixed(2)}`
+                : isWeakGrounded
+                  ? `WARN · ${cp?.groundedness?.toFixed(2)}`
+                  : heat.shortLabel;
+
+              const heatPillW = Math.max(54, Math.round(heatBadgeText.length * 5.6 + 18));
 
               return (
                 <g
                   key={node.id}
                   data-graph-node="true"
                   data-testid={`graph-node-${node.id}`}
+                  data-heat-tier={heat.tier}
                   transform={`translate(${node.x}, ${node.y})`}
                   onClick={() => onSelectNode(node.id)}
                   className="cursor-pointer"
                 >
-                  {/* Active Breathing Halo */}
-                  {(isActive || isPausedHere) && (
-                    <rect
-                      x={-4}
-                      y={-4}
-                      width={NODE_W + 8}
-                      height={NODE_H + 8}
-                      rx={10}
-                      fill="none"
-                      stroke={statusColor}
-                      strokeWidth={1.6}
-                      className="node-halo-pulse"
-                    />
+                  {/* Multi-Ring Breathing Halo for Active / Paused / Red-Team Quarantined Nodes */}
+                  {(isActive || isPausedHere || isRedTeamGuardNode || heat.tier === 'blocked') && (
+                    <>
+                      <rect
+                        x={-5}
+                        y={-5}
+                        width={NODE_W + 10}
+                        height={NODE_H + 10}
+                        rx={11}
+                        fill="none"
+                        stroke={accentHex}
+                        strokeWidth={1.7}
+                        className="node-halo-pulse"
+                      />
+                      <rect
+                        x={-10}
+                        y={-10}
+                        width={NODE_W + 20}
+                        height={NODE_H + 20}
+                        rx={14}
+                        fill="none"
+                        stroke={accentHex}
+                        strokeWidth={0.9}
+                        strokeDasharray="4 4"
+                        className="node-halo-outer"
+                      />
+                    </>
                   )}
 
                   {/* Main Card Surface */}
@@ -489,7 +555,7 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                     rx={8}
                     fill="var(--vg-node-bg)"
                     stroke={borderColor}
-                    strokeWidth={isSelected || isActive || isPausedHere ? 1.8 : 1.1}
+                    strokeWidth={isSelected || isActive || isPausedHere || isRedTeamGuardNode ? 1.9 : 1.15}
                   />
 
                   {/* Top Accent Strip */}
@@ -499,8 +565,8 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                     width={NODE_W - 2}
                     height={3}
                     rx={2}
-                    fill={statusColor}
-                    opacity={isVisited || isActive || isPausedHere ? 0.9 : 0.25}
+                    fill={accentHex}
+                    opacity={isVisited || isActive || isPausedHere || isRedTeamGuardNode ? 0.95 : 0.25}
                   />
 
                   {/* Index + Protocol Badge */}
@@ -510,12 +576,12 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                     fontSize="10"
                     fontFamily="JetBrains Mono, monospace"
                     fontWeight={700}
-                    fill={statusColor}
+                    fill={accentHex}
                   >
                     {node.index}
                   </text>
                   <rect
-                    x={32}
+                    x={30}
                     y={11}
                     width={54}
                     height={16}
@@ -525,10 +591,10 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                     strokeWidth={0.8}
                   />
                   <text
-                    x={59}
+                    x={57}
                     y={22}
                     textAnchor="middle"
-                    fontSize="8.5"
+                    fontSize="8.3"
                     fontFamily="JetBrains Mono, monospace"
                     fontWeight={600}
                     fill="var(--vg-text-muted)"
@@ -536,24 +602,38 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                     {node.protocolBadge}
                   </text>
 
-                  {/* Status LED + Label */}
-                  <circle cx={NODE_W - 14} cy={19} r={3.5} fill={statusColor} />
-                  <text
-                    x={NODE_W - 23}
-                    y={22}
-                    textAnchor="end"
-                    fontSize="8.5"
-                    fontFamily="JetBrains Mono, monospace"
-                    fontWeight={700}
-                    fill={statusColor}
-                  >
-                    {statusLabel}
-                  </text>
+                  {/* Per-Node Latency Heat Badge Pill */}
+                  <g transform={`translate(${NODE_W - heatPillW - 10}, 11)`}>
+                    <rect
+                      width={heatPillW}
+                      height={16}
+                      rx={3.5}
+                      fill={isWeakGrounded ? 'rgba(245, 158, 11, 0.16)' : heat.pillBg}
+                      stroke={isWeakGrounded ? 'rgba(245, 158, 11, 0.5)' : heat.pillBorder}
+                      strokeWidth={0.85}
+                    />
+                    <circle
+                      cx={7.5}
+                      cy={8}
+                      r={2.6}
+                      fill={isWeakGrounded ? '#F59E0B' : heat.hex}
+                    />
+                    <text
+                      x={14}
+                      y={11}
+                      fontSize="8"
+                      fontFamily="JetBrains Mono, monospace"
+                      fontWeight={700}
+                      fill={isWeakGrounded ? '#F59E0B' : heat.hex}
+                    >
+                      {heatBadgeText}
+                    </text>
+                  </g>
 
                   {/* Node Title & Subtitle */}
                   <text
                     x={12}
-                    y={47}
+                    y={46}
                     fontSize="12.5"
                     fontFamily="Space Grotesk, Inter, sans-serif"
                     fontWeight={700}
@@ -563,37 +643,65 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                   </text>
                   <text
                     x={12}
-                    y={63}
-                    fontSize="9.5"
+                    y={61}
+                    fontSize="9.3"
                     fontFamily="Inter, sans-serif"
                     fill="var(--vg-text-muted)"
                   >
                     {node.subtitle}
                   </text>
 
-                  {/* Bottom Telemetry Bar */}
+                  {/* Micro-Progress Bar (Latency Share / Quarantine Fill) */}
+                  <rect
+                    x={12}
+                    y={71}
+                    width={NODE_W - 24}
+                    height={4.5}
+                    rx={2.25}
+                    fill="var(--vg-surface)"
+                    stroke="var(--vg-border)"
+                    strokeWidth={0.5}
+                  />
+                  {latencySharePct > 0 && (
+                    <rect
+                      x={12}
+                      y={71}
+                      width={((NODE_W - 24) * latencySharePct) / 100}
+                      height={4.5}
+                      rx={2.25}
+                      fill={accentHex}
+                      opacity={0.92}
+                    />
+                  )}
+
+                  {/* Bottom Telemetry Footer */}
                   <line
                     x1={10}
-                    y1={75}
+                    y1={84}
                     x2={NODE_W - 10}
-                    y2={75}
+                    y2={84}
                     stroke="var(--vg-border)"
-                    strokeWidth={0.8}
+                    strokeWidth={0.75}
                   />
                   <text
                     x={12}
-                    y={92}
-                    fontSize="9.5"
+                    y={101}
+                    fontSize="9.3"
                     fontFamily="JetBrains Mono, monospace"
-                    fill="var(--vg-text-muted)"
+                    fontWeight={600}
+                    fill={cp || isRedTeamGuardNode ? accentHex : 'var(--vg-text-muted)'}
                   >
-                    {cp ? `${cp.latency_ms.toFixed(0)}ms` : '-- ms'}
+                    {isRedTeamGuardNode
+                      ? `${redTeamOverlay?.evaluation_ms.toFixed(0)}ms`
+                      : cp
+                        ? `${cp.latency_ms.toFixed(0)}ms`
+                        : '-- ms'}
                   </text>
                   <text
                     x={NODE_W / 2}
-                    y={92}
+                    y={101}
                     textAnchor="middle"
-                    fontSize="9.5"
+                    fontSize="9.3"
                     fontFamily="JetBrains Mono, monospace"
                     fill="var(--vg-text-muted)"
                   >
@@ -601,9 +709,9 @@ export const ExecutionGraph: React.FC<ExecutionGraphProps> = ({
                   </text>
                   <text
                     x={NODE_W - 12}
-                    y={92}
+                    y={101}
                     textAnchor="end"
-                    fontSize="9.5"
+                    fontSize="9.3"
                     fontFamily="JetBrains Mono, monospace"
                     fontWeight={600}
                     fill={cp && cp.cost_usd > 0 ? '#38BDF8' : 'var(--vg-text-dim)'}

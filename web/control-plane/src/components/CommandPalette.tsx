@@ -19,8 +19,12 @@ interface CommandPaletteProps {
   onSelectWireTab: (tab: WireTab) => void;
   onToggleTheme: () => void;
   onToggleLocale: () => void;
+  onTogglePlay: () => void;
+  onStep: () => void;
   onRunInstant: () => void;
   onReset: () => void;
+  onExportAuditBundle: () => void;
+  onJumpToSection: (sectionId: string) => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -31,8 +35,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onSelectWireTab,
   onToggleTheme,
   onToggleLocale,
+  onTogglePlay,
+  onStep,
   onRunInstant,
   onReset,
+  onExportAuditBundle,
+  onJumpToSection,
 }) => {
   const [query, setQuery] = useState('');
 
@@ -46,16 +54,32 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       { id: 'scn-b', group: 'SCENARIOS', label: 'Launch Scenario B — Indirect Prompt Injection Defense', run: () => onSelectScenario('prompt_injection') },
       { id: 'scn-c', group: 'SCENARIOS', label: 'Launch Scenario C — Cross-Org A2A Financial Audit', run: () => onSelectScenario('a2a_financial_audit') },
       { id: 'scn-d', group: 'SCENARIOS', label: 'Launch Scenario D — Hallucination Recovery via Time-Travel Fork', run: () => onSelectScenario('hallucination_fork') },
+      { id: 'v2-redteam', group: 'SECURITY v2.0', label: 'Jump to Red-Team Adversarial Guardrail Tester', run: () => onJumpToSection('red-team-deck') },
+      { id: 'v2-finops', group: 'FINOPS v2.0', label: 'Jump to FinOps Cost & Groundedness A/B Simulator', run: () => onJumpToSection('finops-deck') },
+      { id: 'v2-export', group: 'AUDIT v2.0', label: 'Export Signed JSON Trace + OpenTelemetry OTLP Audit Bundle', run: onExportAuditBundle },
       { id: 'tab-mcp', group: 'WIRE INSPECTOR', label: 'Open MCP Wire Tab (JSON-RPC 2.0)', run: () => onSelectWireTab('mcp') },
       { id: 'tab-a2a', group: 'WIRE INSPECTOR', label: 'Open A2A Wire Tab (AgentCard & Signed Tasks)', run: () => onSelectWireTab('a2a') },
       { id: 'tab-agui', group: 'WIRE INSPECTOR', label: 'Open AG-UI Stream Tab (SSE & RFC 6902 Patch)', run: () => onSelectWireTab('agui') },
       { id: 'tab-otel', group: 'WIRE INSPECTOR', label: 'Open OpenTelemetry GenAI Trace Waterfall', run: () => onSelectWireTab('otel') },
-      { id: 'act-instant', group: 'EXECUTION', label: 'Run Current Scenario Instant to Pause / Completion', run: onRunInstant },
-      { id: 'act-reset', group: 'EXECUTION', label: 'Reset Active Execution Graph & Checkpointer', run: onReset },
+      { id: 'act-play', group: 'TRANSPORT', label: 'Play / Pause Auto-Execution', shortcut: 'SPACE', run: onTogglePlay },
+      { id: 'act-step', group: 'TRANSPORT', label: 'Step Single Execution Node', shortcut: 'N', run: onStep },
+      { id: 'act-instant', group: 'TRANSPORT', label: 'Run Current Scenario Instant to Pause / Completion', run: onRunInstant },
+      { id: 'act-reset', group: 'TRANSPORT', label: 'Reset Active Execution Graph & Checkpointer', shortcut: 'R', run: onReset },
       { id: 'ui-theme', group: 'INTERFACE', label: 'Toggle Aerospace Obsidian / Light Technical Blueprint', run: onToggleTheme },
       { id: 'ui-locale', group: 'INTERFACE', label: 'Switch Interface Language (EN / VI)', run: onToggleLocale },
     ],
-    [onReset, onRunInstant, onSelectScenario, onSelectWireTab, onToggleLocale, onToggleTheme]
+    [
+      onExportAuditBundle,
+      onJumpToSection,
+      onReset,
+      onRunInstant,
+      onSelectScenario,
+      onSelectWireTab,
+      onStep,
+      onToggleLocale,
+      onTogglePlay,
+      onToggleTheme,
+    ]
   );
 
   const filtered = useMemo(() => {
@@ -118,7 +142,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   </span>
                   <span className="text-xs text-[var(--vg-text)]">{cmd.label}</span>
                 </div>
-                <CornerDownLeft className="h-3 w-3 text-[var(--vg-text-dim)]" />
+                <div className="flex items-center gap-1.5">
+                  {cmd.shortcut && (
+                    <kbd className="rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--vg-text-dim)]">
+                      {cmd.shortcut}
+                    </kbd>
+                  )}
+                  <CornerDownLeft className="h-3 w-3 text-[var(--vg-text-dim)]" />
+                </div>
               </button>
             ))
           )}
@@ -126,7 +157,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div className="flex items-center justify-between border-t border-[var(--vg-border)] bg-[var(--vg-surface)] px-3.5 py-1.5 font-mono text-[10px] text-[var(--vg-text-dim)]">
           <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" /> VERDICT GRAPH QUICK DISPATCH
+            <Command className="h-3 w-3" /> VERDICT GRAPH v2.0 QUICK DISPATCH
           </span>
           <span>ESC TO CLOSE</span>
         </div>

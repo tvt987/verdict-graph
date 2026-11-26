@@ -82,7 +82,7 @@ export const HitlBanner: React.FC<HitlBannerProps> = ({ t, context, onDecide }) 
           type="button"
           data-testid="hitl-btn-approve"
           onClick={() => onDecide('approve_rollback', 100)}
-          className="flex items-center gap-1.5 rounded border border-emerald-400/60 bg-emerald-500/20 px-3 py-1.5 font-mono text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/30"
+          className="flex items-center gap-1.5 rounded border border-emerald-500/55 bg-emerald-500/15 px-3 py-1.5 font-mono text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/25 dark:border-emerald-400/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/30"
         >
           <CheckCircle2 className="h-4 w-4" />
           <span>{t.approveRollback}</span>
@@ -92,7 +92,7 @@ export const HitlBanner: React.FC<HitlBannerProps> = ({ t, context, onDecide }) 
           type="button"
           data-testid="hitl-btn-canary"
           onClick={() => onDecide('modify_canary', canaryPercent)}
-          className="flex items-center gap-1.5 rounded border border-amber-400/60 bg-amber-500/20 px-3 py-1.5 font-mono text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500/30"
+          className="flex items-center gap-1.5 rounded border border-amber-500/55 bg-amber-500/15 px-3 py-1.5 font-mono text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-500/25 dark:border-amber-400/60 dark:bg-amber-500/20 dark:text-amber-300 dark:hover:bg-amber-500/30"
         >
           <SlidersHorizontal className="h-4 w-4" />
           <span>
@@ -104,7 +104,7 @@ export const HitlBanner: React.FC<HitlBannerProps> = ({ t, context, onDecide }) 
           type="button"
           data-testid="hitl-btn-reject"
           onClick={() => onDecide('reject_escalate', 0)}
-          className="flex items-center gap-1.5 rounded border border-rose-400/50 bg-rose-500/15 px-3 py-1.5 font-mono text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/25"
+          className="flex items-center gap-1.5 rounded border border-rose-500/50 bg-rose-500/12 px-3 py-1.5 font-mono text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-500/22 dark:border-rose-400/50 dark:bg-rose-500/15 dark:text-rose-300 dark:hover:bg-rose-500/25"
         >
           <XCircle className="h-4 w-4" />
           <span>{t.rejectEscalate}</span>

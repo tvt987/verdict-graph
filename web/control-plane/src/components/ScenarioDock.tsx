@@ -142,10 +142,15 @@ export const ScenarioDock: React.FC<ScenarioDockProps> = ({
             onClick={onTogglePlay}
             disabled={run.status === 'paused_hitl' || (run.pending_steps.length === 0 && !isPlaying)}
             data-testid="btn-play-pause"
-            className="flex items-center justify-center gap-1.5 rounded border border-sky-400/45 bg-sky-500/15 px-2.5 py-1.5 font-mono text-[11px] font-semibold text-sky-400 transition-colors hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center justify-between gap-1 rounded border border-sky-400/45 bg-sky-500/15 px-2 py-1.5 font-mono text-[11px] font-semibold text-sky-400 transition-colors hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-            <span>{isPlaying ? t.pause : t.play}</span>
+            <span className="flex items-center gap-1.5">
+              {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              <span>{isPlaying ? t.pause : t.play}</span>
+            </span>
+            <kbd className="rounded border border-sky-400/35 bg-sky-500/15 px-1 text-[8.5px] font-bold">
+              SPC
+            </kbd>
           </button>
 
           <button
@@ -153,10 +158,15 @@ export const ScenarioDock: React.FC<ScenarioDockProps> = ({
             onClick={onStep}
             disabled={run.status === 'paused_hitl' || run.pending_steps.length === 0}
             data-testid="btn-step"
-            className="flex items-center justify-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text)] transition-colors hover:border-sky-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center justify-between gap-1 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text)] transition-colors hover:border-sky-400/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <SkipForward className="h-3.5 w-3.5" />
-            <span>{t.step}</span>
+            <span className="flex items-center gap-1.5">
+              <SkipForward className="h-3.5 w-3.5" />
+              <span>{t.step}</span>
+            </span>
+            <kbd className="rounded border border-[var(--vg-border)] bg-[var(--vg-panel)] px-1 text-[8.5px] text-[var(--vg-text-dim)]">
+              N
+            </kbd>
           </button>
 
           <button
@@ -164,7 +174,7 @@ export const ScenarioDock: React.FC<ScenarioDockProps> = ({
             onClick={onRunInstant}
             disabled={run.status === 'paused_hitl' || run.pending_steps.length === 0}
             data-testid="btn-instant"
-            className="flex items-center justify-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text)] transition-colors hover:border-sky-400/40 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex items-center justify-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text)] transition-colors hover:border-sky-400/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <FastForward className="h-3.5 w-3.5" />
             <span>{t.instant}</span>
@@ -174,12 +184,19 @@ export const ScenarioDock: React.FC<ScenarioDockProps> = ({
             type="button"
             onClick={onReset}
             data-testid="btn-reset"
-            className="flex items-center justify-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text-muted)] transition-colors hover:border-rose-400/40 hover:text-rose-400"
+            className="flex items-center justify-between gap-1 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1.5 font-mono text-[11px] font-medium text-[var(--vg-text-muted)] transition-colors hover:border-rose-400/40 hover:text-rose-400"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span>{t.reset}</span>
+            <span className="flex items-center gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>{t.reset}</span>
+            </span>
+            <kbd className="rounded border border-[var(--vg-border)] bg-[var(--vg-panel)] px-1 text-[8.5px] text-[var(--vg-text-dim)]">
+              R
+            </kbd>
           </button>
         </div>
+
+        <p className="mt-2 font-mono text-[9px] text-[var(--vg-text-dim)]">{t.keyboardHint}</p>
 
         {/* Step Progress Strip */}
         <div className="mt-3 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2">
@@ -242,6 +259,7 @@ export const ScenarioDock: React.FC<ScenarioDockProps> = ({
               onClick={() => {
                 onChangeRuntimeMode(item.id);
                 if (item.id === 'byok') setShowByokFields(true);
+                if (item.id === 'python') onReprobeCluster();
               }}
               className={`flex items-center justify-between rounded border px-2.5 py-1.5 font-mono text-[11px] transition-colors ${
                 runtimeMode === item.id
