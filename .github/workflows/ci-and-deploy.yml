@@ -1,0 +1,95 @@
+name: CI & Deploy Verdict Graph to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  test-python-runtime:
+    name: Python 3.12 Runtime (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/agent-runtime-python
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: services/agent-runtime-python/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute pytest suite
+        run: pytest -v
+
+  build-and-test-web:
+    name: Web Control Plane (Vitest + Vite Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/control-plane
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/control-plane/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Typecheck and build production bundle
+        run: npm run build
+
+      - name: Copy SPA 404 fallback for GitHub Pages
+        run: cp dist/index.html dist/404.html
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/control-plane/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [test-python-runtime, build-and-test-web]
+    if: github.event_name != 'pull_request'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,10 @@
+[project]
+name = "verdict-graph-runtime"
+version = "1.0.0"
+description = "Verdict Graph Python 3.12 Multi-Agent Runtime: MCP JSON-RPC 2.0, A2A, AG-UI SSE, Time-Travel Checkpointer, Guardrails, and OpenTelemetry GenAI."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --tb=short"

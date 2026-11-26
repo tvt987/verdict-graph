@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  --vg-bg: #050609;
+  --vg-panel: #0b0e14;
+  --vg-surface: #111622;
+  --vg-surface-hover: #171e2e;
+  --vg-border: rgba(148, 163, 184, 0.14);
+  --vg-border-strong: rgba(56, 189, 248, 0.34);
+  --vg-text: #f1f5f9;
+  --vg-text-muted: #94a3b8;
+  --vg-text-dim: #64748b;
+  --vg-accent: #38bdf8;
+  --vg-amber: #f59e0b;
+  --vg-crimson: #f43f5e;
+  --vg-emerald: #10b981;
+  --vg-grid-line: rgba(56, 189, 248, 0.06);
+  --vg-grid-dot: rgba(148, 163, 184, 0.16);
+  --vg-node-bg: #0c1018;
+  --vg-code-bg: #07090e;
+}
+
+html.light {
+  --vg-bg: #f4f5f7;
+  --vg-panel: #ffffff;
+  --vg-surface: #f8fafc;
+  --vg-surface-hover: #eef2f6;
+  --vg-border: rgba(15, 23, 42, 0.12);
+  --vg-border-strong: rgba(2, 132, 199, 0.42);
+  --vg-text: #0f172a;
+  --vg-text-muted: #475569;
+  --vg-text-dim: #64748b;
+  --vg-accent: #0284c7;
+  --vg-amber: #d97706;
+  --vg-crimson: #e11d48;
+  --vg-emerald: #059669;
+  --vg-grid-line: rgba(2, 132, 199, 0.07);
+  --vg-grid-dot: rgba(15, 23, 42, 0.16);
+  --vg-node-bg: #ffffff;
+  --vg-code-bg: #f1f5f9;
+}
+
+html,
+body {
+  background-color: var(--vg-bg);
+  color: var(--vg-text);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Smooth View Transitions API circular reveal */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Crisp custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* SVG optical flow animations */
+@keyframes opticalDash {
+  from {
+    stroke-dashoffset: 32;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.edge-flow-active {
+  stroke-dasharray: 6 6;
+  animation: opticalDash 0.85s linear infinite;
+}
+
+.edge-flow-cyclic {
+  stroke-dasharray: 5 5;
+  animation: opticalDash 1.1s linear infinite;
+}
+
+@keyframes nodePulseRing {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(1.03);
+  }
+}
+
+.node-halo-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: nodePulseRing 1.8s ease-in-out infinite;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.vg-panel {
+  background-color: var(--vg-panel);
+  border: 1px solid var(--vg-border);
+}
+
+.vg-surface {
+  background-color: var(--vg-surface);
+  border: 1px solid var(--vg-border);
+}
+
+.vg-code {
+  background-color: var(--vg-code-bg);
+  border: 1px solid var(--vg-border);
+  font-family: var(--font-mono);
+}

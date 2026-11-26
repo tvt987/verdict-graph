@@ -1,0 +1,23 @@
+services:
+  agent-runtime-python:
+    build:
+      context: ./services/agent-runtime-python
+      dockerfile: Dockerfile
+    container_name: verdict-graph-runtime
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  control-plane-web:
+    build:
+      context: ./web/control-plane
+      dockerfile: Dockerfile
+    container_name: verdict-graph-web
+    ports:
+      - "4173:80"
+    depends_on:
+      - agent-runtime-python
