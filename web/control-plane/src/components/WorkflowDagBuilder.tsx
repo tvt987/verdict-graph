@@ -950,3 +950,5 @@ export const WorkflowDagBuilder: React.FC<WorkflowDagBuilderProps> = ({ t, local
     </section>
   );
 };
+
+export default WorkflowDagBuilder;

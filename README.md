@@ -1,106 +1,115 @@
-# VERDICT GRAPH — Visual Multi-Agent Control Plane & Time-Travel Protocol Debugger
+# VERDICT GRAPH v4.0 — Full-Stack Multi-Agent DAG, OWASP Prompt Firewall & FinOps Control Plane
 
 **Author:** Truong Van Tinh ([github.com/tvt987](https://github.com/tvt987))  
-**Stack:** `MCP JSON-RPC 2.0` · `A2A v0.2.2` · `AG-UI SSE (RFC 6902)` · `LangGraph-style Immutable Checkpointer` · `OpenTelemetry GenAI` · `Python 3.12 FastAPI` · `React 19 + TypeScript + Vite 6 + Tailwind v4`
+**Live Control Plane:** [tvt987.github.io/verdict-graph](https://tvt987.github.io/verdict-graph/)  
+**Stack:** `Python 3.12 FastAPI` · `React 19 + TypeScript + Vite 6 + Tailwind v4` · `OWASP LLM01–LLM10 Prompt Firewall` · `Token/USD Budget Circuit Breaker` · `DAG Cycle Detector` · `FinOps Pareto Router` · `MCP JSON-RPC 2.0` · `A2A v0.2.2` · `AG-UI SSE (RFC 6902)` · `OpenTelemetry GenAI` · `Docker + Nginx + Redis + Qdrant`
 
-VERDICT GRAPH is a polyglot dual-runtime observability and control plane engineered to inspect, govern, pause, fork, and replay cyclic multi-agent workflows across the three foundational agentic wire protocols (`MCP`, `A2A`, `AG-UI`) with OpenTelemetry GenAI semantic tracing and FinOps token accounting.
+VERDICT GRAPH v4.0 is a full-stack production multi-agent observability, security guardrail, and FinOps control plane monorepo. It unites a real `Python 3.12 FastAPI` control-plane API (`backend/verdict_api/`) with a code-split `React 19` mission-control cockpit (`web/control-plane/`) and polyglot protocol runtime (`services/agent-runtime-python/`).
 
 ---
 
-## Architecture Overview
+## System Architecture (v4.0 Full-Stack Monorepo)
 
 ```text
-+------------------------------------------------------------------------------+
-|                       VERDICT GRAPH MISSION CONTROL                          |
-|     React 19 + TypeScript + Tailwind v4 + Interactive Pan/Zoom SVG DAG       |
-|  [Browser Protocol Engine] <--> [Optional Local Python :8090] <--> [BYOK]    |
-+--------------------------------------+---------------------------------------+
-                                       |
-         +-----------------------------+-----------------------------+
-         |                             |                             |
-         v                             v                             v
-+------------------+         +-------------------+         +-------------------+
-|  MCP JSON-RPC 2  |         |  A2A Protocol 0.2 |         | AG-UI SSE Stream  |
-|  POST /mcp       |         | /.well-known/     |         | GET /ag-ui/stream |
-|  initialize      |         |   agent.json      |         | RUN_STARTED       |
-|  tools/list      |         | POST /a2a/tasks/  |         | STATE_DELTA       |
-|  tools/call      |         |   send            |         |   (RFC 6902 Patch)|
-|  resources/read  |         | Signed Artifacts  |         | INTERRUPT_REQUIRED|
-+------------------+         +-------------------+         +-------------------+
-         |                             |                             |
-         +-----------------------------+-----------------------------+
-                                       |
-                                       v
-+------------------------------------------------------------------------------+
-|                  CYCLIC 6-NODE GRAPH & IMMUTABLE CHECKPOINTER                |
-|  01. Supervisor Planner <-> 04. Policy Guardrail (Violation Reroute Loop)    |
-|  02. MCP Context Scout  <-> 06. Grounded Synthesizer (Time-Travel Fork Loop) |
-|  03. A2A Specialist     <-> 05. HITL Approval Gate (Canary Re-Plan Loop)     |
-|                                                                              |
-|  Immutable Checkpoints (CP-01..CP-08) -> Parent-Child DAG -> Branch Diff     |
-|  OpenTelemetry GenAI Semantic Spans (gen_ai.* + FinOps USD Cost Accounting)  |
-+------------------------------------------------------------------------------+
++----------------------------------------------------------------------------------+
+|                     NGINX REVERSE PROXY + STRICT CSP (:4173)                     |
+|   React 19 + TS + Tailwind v4 SPA (Code-Split Entry: 69.79 kB / 20.82 kB gzip)   |
+|  [Execution Graph] [Prompt Firewall & Breaker] [P95/USD Waterfall] [DAG Builder] |
+|  [OWASP Top-10 Suite] [FinOps Pareto Router] [Time-Travel Diff] [Wire Inspector] |
++----------------------------------------+-----------------------------------------+
+                                         |  /api/v1/* (HTTP/1.1 JSON)
+                                         v
++----------------------------------------------------------------------------------+
+|             PYTHON 3.12 FASTAPI MULTI-AGENT CONTROL PLANE API (:8000)            |
+|  GET  /health                     -> Service & guardrail capability metadata     |
+|  POST /api/v1/dag/validate-and-run-> Kahn+DFS cycle check (400) + Budget Breaker |
+|  POST /api/v1/firewall/scan       -> OWASP LLM01-LLM10 scanner + safe redaction  |
+|  POST /api/v1/finops/route        -> Pareto-optimal SLA model selection engine   |
++------------------+-----------------------------+---------------------------------+
+                   |                             |
+                   v                             v
+      +------------------------+    +--------------------------+
+      |   REDIS 7 (AOF :6379)  |    | QDRANT VECTOR DB (:6333) |
+      | Checkpoints & KV Cache |    | Tenant-Scoped Embeddings |
+      +------------------------+    +--------------------------+
 ```
 
 ---
 
-## Core Capabilities
+## Flagship v4.0 Capabilities
 
-### 1. Cyclic 6-Node Execution Graph
-- **01. Supervisor Planner:** Routes tasks, enforces FinOps budget ceilings, and handles cyclic re-entry after guardrail sanitization.
-- **02. MCP Context Scout:** Performs `initialize`, `tools/list`, `tools/call`, and `resources/read` over JSON-RPC 2.0.
-- **03. A2A Specialist Agent:** Discovers peer `/.well-known/agent.json` AgentCards, matches skills, tracks `submitted -> working -> completed` transitions, and validates Ed25519 signed artifacts.
-- **04. Policy & Injection Guardrail:** Evaluates untrusted payloads for indirect prompt injection (`INJ-OVERRIDE-001`), outbound data exfiltration (`INJ-EXFIL-001`), credential/PII leaks (`PII-SECRET-001`, `PII-SSN-002`), and destructive cluster mutations (`POL-MUTATE-001`). Routes violations cyclically back to Node 01.
-- **05. HITL Approval Gate:** True execution interrupt checkpoint pausing before high-risk production mutations (`Approve 100%`, `Modify Canary % & Approve`, or `Reject & Escalate`).
-- **06. Grounded Synthesizer:** Emits cited verdicts and structured AG-UI generative widgets.
+### 1. Real-Time OWASP LLM01–LLM10 Prompt Firewall & Live Token Budget Circuit Breaker
+- **Multi-Vector Prompt Scanner (`promptFirewallEngine.ts` & `POST /api/v1/firewall/scan`):** Inspects arbitrary user prompts in real time against all 10 **OWASP LLM Top-10** categories (`LLM01` Jailbreak Roleplay, `LLM02` PII/Secret Exfiltration, `LLM03` Untrusted MCP Supply Chain, `LLM04` Indirect RAG Poisoning, `LLM05` Tool-Call & SQL/Script Injection, `LLM06` Excessive Agency, `LLM07` System Prompt Extraction, `LLM08` Cross-Tenant Vector Bleed, `LLM09` Fabricated Citation Bait, `LLM10` Token Exhaustion DoS + structural flood).
+- **Zero-`innerHTML` Risky Span Highlighting:** Partitions raw prompts into lossless React `<span>` highlight segments (`0` `dangerouslySetInnerHTML`, strict CSP intact) with one-click sanitized redaction (`[BLOCKED:LLM0x]`).
+- **Configurable Token/USD Budget Circuit Breaker:** Supports **`HARD_STOP`** (halts offending node and skips downstream nodes before exceeding Token/USD cap) and **`DOWNGRADE_MODEL`** (auto-downgrades from Frontier models like `Claude 3.7 Sonnet` / `GPT-4o` -> `Gemini 2.5 Flash` or `Local vLLM Qwen-72B` when spend approaches threshold, saving >90% per remaining node).
 
-### 2. Four Enterprise Scenarios
-| Code | Scenario | Protocols Exercised | Key Governance Pattern |
-| :--- | :--- | :--- | :--- |
-| `SCN-A` | **Production Outage & Safe Rollback** | `MCP`, `A2A`, `AG-UI`, `HITL` | Pauses at `CP-05` before mutating 712-store voucher cluster (`842ms -> 42.1ms`). |
-| `SCN-B` | **Indirect Prompt Injection Defense** | `MCP`, `POLICY`, `AG-UI` | Detects `INJ-EXFIL-001` (`risk=0.98`) in external memo targeting `attacker.io`; sanitizes & loops `04 -> 01`. |
-| `SCN-C` | **Cross-Org A2A Financial Audit** | `A2A`, `MCP`, `POLICY` | Discovers `audit-verifier.finops.org`, verifies 14,820 hashed ledger entries with Ed25519 attestation. |
-| `SCN-D` | **Hallucination Recovery via Time-Travel Fork** | `MCP`, `FORK`, `OTel` | Main branch scores `0.61` groundedness (`top_k=24`). Forking `CP-02` with `top_k=8, rerank=true, strict_grounding=true` recovers `0.99` groundedness at **>42% lower USD cost**. |
+### 2. Interactive DAG Latency & Cost Waterfall Replay
+- Step-by-step animated replay (`Play`, `Pause`, `Step`, `Reset`, interactive scrubber) tracking cumulative **P95 latency (`ms`)** and **USD spend** across multi-agent branches (`Branch A: Frontier Serial` vs `Branch B: Parallel Hybrid` vs `Branch C: Circuit-Breaker Flash`, or live active Time-Travel Fork runs).
 
-### 3. Guardrail Evaluation Benchmarks
-Validated automatically in `services/agent-runtime-python/tests/test_guardrails.py` and `web/control-plane/src/engine/__tests__/protocolEngine.test.ts`:
-- **Adversarial Recall (Prompt Injection & Exfiltration):** `100%` (`risk >= 0.96`, deterministic redaction to `[REDACTED_ADVERSARIAL_DIRECTIVE]`)
-- **Credential & PII Detection (`sk-*`, `ghp_*`, `AKIA*`, SSN):** `100%`
-- **Benign Enterprise False Positive Rate:** `0.0%` across production telemetry, SQL/Redis architecture specs, and ledger payloads.
+### 3. Deterministic DAG Topological Validator & Cycle Detector (`POST /api/v1/dag/validate-and-run`)
+- Executes `O(V + E)` Kahn topological sort with 3-color DFS cycle witness extraction (`HTTP 400 DAG_CYCLE_DETECTED` with exact `cycle_nodes`), duplicate-node/unknown-edge validation, parallel level critical-path P95 calculation, inline firewall scanning, and Token/USD circuit-breaker enforcement.
 
-### 4. Wire Protocol Schemas Implemented
-- **MCP JSON-RPC 2.0 (`POST /mcp`):** Full JSON-RPC 2.0 envelope validation including `-32600` (Invalid Request), `-32601` (Method/Tool Not Found), and `-32602` (Invalid Params).
-- **A2A Protocol (`GET /.well-known/agent.json`, `POST /a2a/tasks/send`, `GET /a2a/tasks/{id}`):** Canonical `AgentCard` capability/skill descriptors, state transition history, and cryptographically signed artifacts.
-- **AG-UI Stream (`GET /ag-ui/stream`):** RFC-compliant `text/event-stream` emitting `RUN_STARTED`, `STEP_STARTED`, `TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_RESULT`, `STATE_DELTA` (RFC 6902 JSON Patch), `INTERRUPT_REQUIRED`, `TEXT_MESSAGE_CONTENT`, and `RUN_FINISHED`.
-- **OpenTelemetry GenAI Spans:** Captures `trace_id`, `span_id`, `parent_span_id`, `gen_ai.operation.name`, `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.ttft_ms`, and `verdict.finops.cost_usd`.
+### 4. Multi-Model FinOps Pareto Router (`POST /api/v1/finops/route`)
+- Evaluates `Claude 3.7 Sonnet`, `Gemini 2.5 Pro`, `GPT-4o`, `Gemini 2.5 Flash`, and `Local vLLM Qwen-72B` against `max_p95_latency_ms`, `max_cost_per_1k_usd`, `min_quality_index`, and semantic/KV cache hit rates (`0%–85%`), isolating non-dominated Pareto-frontier models.
+
+### 5. Cyclic 6-Node Protocol Control Plane & Time-Travel Forking
+- Full interactive support for **MCP JSON-RPC 2.0**, **A2A v0.2.2**, **AG-UI SSE (RFC 6902 JSON Patch)**, **OpenTelemetry GenAI OTLP export**, **HITL Canary Approval Gates**, **Immutable Checkpoint Forking & Structured State Diff**, and **Custom 7-Role Workflow DAG Builder**.
 
 ---
 
-## Local Development & Verification
+## Architecture Documentation & OpenAPI 3.1
 
-### 1. Run Python 3.12 Backend (`http://127.0.0.1:8090`)
+- **OpenAPI 3.1 Specification:** [`docs/openapi.yaml`](docs/openapi.yaml)
+- **ADR-001:** [`docs/ADR-001-Deterministic-DAG-TimeTravel-Diff.md`](docs/ADR-001-Deterministic-DAG-TimeTravel-Diff.md)
+- **ADR-002:** [`docs/ADR-002-OWASP-LLM-Firewall-FinOps-CircuitBreaker.md`](docs/ADR-002-OWASP-LLM-Firewall-FinOps-CircuitBreaker.md)
+
+---
+
+## Quick Start (Docker Compose & Local Development)
+
+### 1. Run Complete Full-Stack Cluster via Docker Compose (`web` + `api` + `redis` + `qdrant`)
+```bash
+docker compose up --build
+```
+- **Web Control Plane (Nginx + Strict CSP):** `http://127.0.0.1:4173`
+- **FastAPI Control Plane API (Swagger UI):** `http://127.0.0.1:8000/docs`
+- **Health Check:** `http://127.0.0.1:8000/health`
+- **Redis 7:** `127.0.0.1:6379` | **Qdrant Vector DB:** `http://127.0.0.1:6333`
+
+### 2. Run Python 3.12 FastAPI Backend & Pytest Locally
+```bash
+pip install -r backend/requirements.txt
+python -m pytest backend/tests -v
+uvicorn verdict_api.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
+```
+
+### 3. Run Frontend Control Plane & Vitest Locally
+```bash
+cd web/control-plane
+npm ci
+npm test
+npm run build
+npm run preview
+```
+
+### 4. Run Legacy Dual-Protocol Runtime Suite
 ```bash
 cd services/agent-runtime-python
 pip install -r requirements.txt
 pytest -v
-uvicorn app.main:app --host 127.0.0.1 --port 8090 --reload
 ```
 
-### 2. Run Web Control Plane (`http://127.0.0.1:5173/verdict-graph/`)
-```bash
-cd web/control-plane
-npm install
-npm test
-npm run build
-npm run dev
-```
+---
 
-### 3. Run Full Dual-Runtime Stack via Docker Compose
-```bash
-docker compose up --build
-```
-- Web Control Plane: `http://127.0.0.1:4173/verdict-graph/`
-- Python Agent Runtime: `http://127.0.0.1:8090/health`
+## Verification & Benchmark Matrix
+
+| Verification Gate | Command | Verified Result |
+| :--- | :--- | :--- |
+| **Frontend Unit Tests (Vitest)** | `cd web/control-plane && npm test` | **91 / 91 passed** (`4` test suites: `protocolEngine`, `v2Upgrades`, `v3Upgrades`, `promptFirewallEngine`) |
+| **Backend Control Plane API (Pytest)** | `python -m pytest backend/tests -v` | **30 / 30 passed** (FastAPI `TestClient`: cycle detection `400`, budget breaker, OWASP LLM01–LLM10, Pareto routing) |
+| **Legacy Polyglot Runtime (Pytest)** | `cd services/agent-runtime-python && pytest -v` | **20 / 20 passed** (MCP JSON-RPC 2.0, A2A, AG-UI SSE, immutable checkpointer, OTel GenAI) |
+| **Production Build & Code-Splitting** | `cd web/control-plane && npm run build` | **0 errors** · Entry `index.js`: **69.79 kB** (`20.82 kB` gzip) · `engines.js`: **117.76 kB** · `react.js`: **223.21 kB** · 9 lazy lab chunks (`5.5–21.2 kB`) |
+| **Playwright Headless E2E QA** | `1440x900` Desktop + `390x844` Mobile | **0** console errors · **0** page errors · **0** failed requests · **0px** horizontal overflow · Live Firewall block + Circuit Breaker trip + Waterfall replay verified |
 
 ---
 
@@ -108,22 +117,25 @@ docker compose up --build
 
 ```text
 verdict-graph/
-├── .github/workflows/ci-and-deploy.yml   # Python pytest + Node Vitest + GitHub Pages deploy
-├── docker-compose.yml                    # Full polyglot local cluster
-├── services/agent-runtime-python/        # Python 3.12 FastAPI runtime + 20 pytest tests
-│   ├── app/
-│   │   ├── checkpointer.py               # Immutable DAG Checkpointer & Fork engine
-│   │   ├── engine.py                     # Cyclic 6-node state machine
-│   │   ├── guardrails.py                 # Prompt Injection, Exfiltration, PII scanner
-│   │   ├── telemetry.py                  # OpenTelemetry GenAI & FinOps pricing engine
-│   │   ├── protocols/
-│   │   │   ├── mcp.py                    # MCP JSON-RPC 2.0 handler
-│   │   │   ├── a2a.py                    # A2A AgentCard & Task store
-│   │   │   └── ag_ui.py                  # AG-UI SSE & RFC 6902 JSON Patch encoder
-│   │   └── main.py                       # FastAPI ASGI entrypoint
-│   └── tests/                            # Comprehensive pytest suite
-└── web/control-plane/                    # React 19 + TS + Vite 6 + Tailwind v4
+├── Dockerfile                            # Multi-stage Vite build + hardened Nginx runtime
+├── nginx.conf                            # Strict CSP, gzip, /api/v1 reverse proxy, SPA routing
+├── docker-compose.yml                    # Full stack: web + api + redis + qdrant
+├── backend/                              # Python 3.12 FastAPI v4.0 Control Plane API
+│   ├── Dockerfile                        # Non-root Python 3.12-slim multi-stage container
+│   ├── requirements.txt
+│   ├── verdict_api/
+│   │   ├── dag_engine.py                 # Kahn+DFS cycle detector, Budget Breaker, OWASP Firewall, Pareto Router
+│   │   └── main.py                       # FastAPI routes (/health, /api/v1/dag/*, /firewall/*, /finops/*)
+│   └── tests/
+│       └── test_verdict_api.py           # 30 FastAPI TestClient integration tests
+├── docs/
+│   ├── openapi.yaml                      # OpenAPI 3.1.0 specification matching FastAPI routes
+│   ├── ADR-001-Deterministic-DAG-TimeTravel-Diff.md
+│   └── ADR-002-OWASP-LLM-Firewall-FinOps-CircuitBreaker.md
+├── services/agent-runtime-python/        # Polyglot MCP / A2A / AG-UI runtime (20 pytest tests)
+└── web/control-plane/                    # React 19 + TS + Vite 6 + Tailwind v4 SPA (91 Vitest tests)
     └── src/
-        ├── engine/                       # Browser Protocol Engine + Remote/BYOK Bridge + Vitest
-        └── components/                   # ExecutionGraph, TimeTravelPanel, WireInspector, HITL
+        ├── engine/                       # promptFirewallEngine, protocolEngine, redTeamClassifier, finopsSimulator
+        ├── engines/                      # workflowBuilder (7-role DAG builder)
+        └── components/                   # Lazy-loaded PromptFirewallLab, DagWaterfallReplay, WorkflowDagBuilder, etc.
 ```

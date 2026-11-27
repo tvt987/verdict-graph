@@ -552,3 +552,5 @@ export const FinOpsSimulatorPanel: React.FC<FinOpsSimulatorPanelProps> = ({
     </section>
   );
 };
+
+export default FinOpsSimulatorPanel;

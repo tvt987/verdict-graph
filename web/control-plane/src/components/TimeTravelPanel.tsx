@@ -659,3 +659,5 @@ export const TimeTravelPanel: React.FC<TimeTravelPanelProps> = ({
     </section>
   );
 };
+
+export default TimeTravelPanel;

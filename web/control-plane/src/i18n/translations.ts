@@ -80,6 +80,13 @@ export interface Translations {
   licenseBtnLabel: string;
   licenseModalTitle: string;
   licenseModalSubtitle: string;
+  // v4.0 Prompt Firewall, Token Budget Circuit Breaker & Waterfall Replay
+  firewallLabTitle: string;
+  firewallLabSubtitle: string;
+  firewallScannerHeading: string;
+  budgetBreakerHeading: string;
+  waterfallReplayTitle: string;
+  waterfallReplaySubtitle: string;
 }
 
 export const TRANSLATIONS: Record<Locale, Translations> = {
@@ -160,8 +167,14 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     owaspExportJsonBtn: 'JSON Report',
     owaspExportMdBtn: 'Markdown Report',
     licenseBtnLabel: 'License · 19.9M',
-    licenseModalTitle: 'VERDICT GRAPH v3.0 — ENTERPRISE LICENSE & VIETQR',
+    licenseModalTitle: 'VERDICT GRAPH v4.0 — ENTERPRISE LICENSE & VIETQR',
     licenseModalSubtitle: 'Commercial Source Code Rights · MBBank Direct VietQR Settlement · TVT Studio Flagship #3',
+    firewallLabTitle: 'PROMPT FIREWALL (OWASP LLM01-LLM10) & LIVE TOKEN BUDGET CIRCUIT BREAKER',
+    firewallLabSubtitle: 'Real-time multi-vector prompt inspection with exact pattern spans · HARD_STOP vs Frontier-to-Flash auto-downgrade',
+    firewallScannerHeading: 'MULTI-VECTOR OWASP PROMPT FIREWALL',
+    budgetBreakerHeading: 'TOKEN / USD BUDGET CIRCUIT BREAKER',
+    waterfallReplayTitle: 'INTERACTIVE DAG LATENCY & COST WATERFALL REPLAY',
+    waterfallReplaySubtitle: 'Step-by-step animated multi-branch replay tracking cumulative P95 latency & USD spend per agent node',
   },
   vi: {
     brandSubtitle: 'TRUNG TÂM ĐIỀU KHIỂN ĐA TÁC TỬ // MCP × A2A × AG-UI × OTEL',
@@ -240,7 +253,13 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     owaspExportJsonBtn: 'Xuất JSON',
     owaspExportMdBtn: 'Xuất Markdown',
     licenseBtnLabel: 'Bản Quyền · 19.9M',
-    licenseModalTitle: 'VERDICT GRAPH v3.0 — BÁO GIÁ DOANH NGHIỆP & VIETQR',
+    licenseModalTitle: 'VERDICT GRAPH v4.0 — BÁO GIÁ DOANH NGHIỆP & VIETQR',
     licenseModalSubtitle: 'Bản Quyền Mã Nguồn Thương Mại · Thanh Toán VietQR MBBank · Flagship #3 TVT Studio',
+    firewallLabTitle: 'TƯỜNG LỬA PROMPT (OWASP LLM01-LLM10) & BỘ NGẮT MẠCH NGÂN SÁCH TOKEN',
+    firewallLabSubtitle: 'Quét prompt đa vector thời gian thực, tô sáng đoạn rủi ro · HARD_STOP hoặc tự hạ tầng Frontier sang Flash',
+    firewallScannerHeading: 'TƯỜNG LỬA PROMPT ĐA VECTOR OWASP',
+    budgetBreakerHeading: 'BỘ NGẮT MẠCH NGÂN SÁCH TOKEN / USD',
+    waterfallReplayTitle: 'PHÁT LẠI THÁC NƯỚC ĐỘ TRỄ P95 & CHI PHÍ USD THEO NHÁNH DAG',
+    waterfallReplaySubtitle: 'Mô phỏng từng bước độ trễ P95 tích lũy và chi phí USD qua từng node tác tử theo nhánh thực thi',
   },
 };

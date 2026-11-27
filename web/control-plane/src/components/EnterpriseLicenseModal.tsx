@@ -366,3 +366,5 @@ export const EnterpriseLicenseModal: React.FC<EnterpriseLicenseModalProps> = ({
     </div>
   );
 };
+
+export default EnterpriseLicenseModal;

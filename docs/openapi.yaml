@@ -1,0 +1,488 @@
+openapi: 3.1.0
+info:
+  title: Verdict Graph v4.0 Multi-Agent Control Plane API
+  version: 4.0.0
+  description: >
+    Production Python 3.12 FastAPI control plane exposing deterministic multi-agent DAG
+    topological validation and cycle detection, Token/USD Budget Circuit Breakers
+    (HARD_STOP vs Frontier-to-Flash DOWNGRADE_MODEL), OWASP LLM01-LLM10 Prompt Firewall
+    scanning, and FinOps Pareto model routing.
+  contact:
+    name: Truong Van Tinh
+    url: https://github.com/tvt987/verdict-graph
+  license:
+    name: Commercial & Portfolio Reference License
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local FastAPI Control Plane API
+  - url: http://127.0.0.1:4173
+    description: Nginx Reverse Proxy (Docker Compose)
+
+tags:
+  - name: System
+    description: Health & runtime capability inspection
+  - name: DAG Engine
+    description: Topological sort, cycle detection, and budget-guarded multi-agent DAG execution
+  - name: Prompt Firewall
+    description: Multi-vector OWASP LLM01-LLM10 prompt inspection and redaction
+  - name: FinOps Router
+    description: Pareto-optimal model routing under latency, cost, and quality SLAs
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Control plane health & loaded guardrail capabilities
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/dag/validate-and-run:
+    post:
+      tags: [DAG Engine]
+      summary: Validate DAG acyclicity and simulate trace with Budget Circuit Breaker
+      operationId: validateAndRunDag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DagRunRequest"
+      responses:
+        "200":
+          description: DAG validated acyclic and executed with per-node telemetry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DagRunResponse"
+        "400":
+          description: Cycle detected, unknown edge reference, or duplicate node ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DagErrorResponse"
+
+  /api/v1/firewall/scan:
+    post:
+      tags: [Prompt Firewall]
+      summary: Scan arbitrary user prompt against OWASP LLM01-LLM10 vectors
+      operationId: scanPromptFirewall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FirewallScanRequest"
+      responses:
+        "200":
+          description: Risk score, OWASP matrix, matched spans, sanitized prompt, and decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirewallScanResponse"
+
+  /api/v1/finops/route:
+    post:
+      tags: [FinOps Router]
+      summary: Compute Pareto-optimal LLM selection under latency, cost, and quality SLA
+      operationId: routeFinOpsPareto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinOpsRouteRequest"
+      responses:
+        "200":
+          description: Recommended model, monthly/annual savings, and Pareto candidate table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinOpsRouteResponse"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, version, models_registered, owasp_rules_loaded, capabilities]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: verdict-graph-control-plane-api
+        version:
+          type: string
+          example: 4.0.0
+        models_registered:
+          type: integer
+          example: 6
+        owasp_rules_loaded:
+          type: integer
+          example: 10
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    DagNodeSpec:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          example: planner
+        role:
+          type: string
+          default: agent
+          example: planner
+        model:
+          type: string
+          default: claude-3.7-sonnet
+          enum:
+            - claude-3.7-sonnet
+            - gemini-2.5-pro
+            - gpt-4o
+            - gemini-2.5-flash
+            - vllm-qwen-72b
+            - policy-classifier-v3
+        estimated_input_tokens:
+          type: integer
+          minimum: 1
+          maximum: 250000
+          default: 1400
+        estimated_output_tokens:
+          type: integer
+          minimum: 1
+          maximum: 64000
+          default: 380
+        prompt_snippet:
+          type: string
+          default: ""
+
+    DagEdgeSpec:
+      type: object
+      required: [source, target]
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+
+    BudgetCircuitBreakerConfig:
+      type: object
+      properties:
+        max_tokens:
+          type: integer
+          minimum: 256
+          maximum: 2000000
+          default: 12000
+        max_usd:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 100
+          default: 0.05
+        soft_threshold_ratio:
+          type: number
+          minimum: 0.1
+          maximum: 0.98
+          default: 0.7
+        mode:
+          type: string
+          enum: [HARD_STOP, DOWNGRADE_MODEL]
+          default: DOWNGRADE_MODEL
+        fallback_model:
+          type: string
+          default: gemini-2.5-flash
+
+    DagRunRequest:
+      type: object
+      required: [nodes]
+      properties:
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/DagNodeSpec"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/DagEdgeSpec"
+        budget:
+          $ref: "#/components/schemas/BudgetCircuitBreakerConfig"
+        enable_firewall:
+          type: boolean
+          default: true
+
+    DagNodeTrace:
+      type: object
+      required:
+        - step_index
+        - node_id
+        - role
+        - dag_level
+        - requested_model
+        - executed_model
+        - status
+        - input_tokens
+        - output_tokens
+        - total_tokens
+        - cumulative_tokens
+        - node_cost_usd
+        - cumulative_cost_usd
+        - latency_ms
+        - p95_latency_ms
+        - cumulative_p95_ms
+        - note
+      properties:
+        step_index: { type: integer }
+        node_id: { type: string }
+        role: { type: string }
+        dag_level: { type: integer }
+        requested_model: { type: string }
+        executed_model: { type: string }
+        status:
+          type: string
+          enum: [COMPLETED, DOWNGRADED, HALTED_BUDGET, SKIPPED_CIRCUIT_OPEN, BLOCKED_FIREWALL]
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        total_tokens: { type: integer }
+        cumulative_tokens: { type: integer }
+        node_cost_usd: { type: number }
+        cumulative_cost_usd: { type: number }
+        latency_ms: { type: number }
+        p95_latency_ms: { type: number }
+        cumulative_p95_ms: { type: number }
+        note: { type: string }
+
+    CircuitBreakerSummary:
+      type: object
+      required:
+        - mode
+        - state
+        - tripped
+        - fallback_model
+        - token_utilization_pct
+        - usd_utilization_pct
+        - usd_saved_vs_frontier
+      properties:
+        mode:
+          type: string
+          enum: [HARD_STOP, DOWNGRADE_MODEL]
+        state:
+          type: string
+          enum: [CLOSED, DOWNGRADED_FLASH, TRIPPED_HARD_STOP]
+        tripped: { type: boolean }
+        tripped_at_node_id:
+          type: [string, "null"]
+        trip_reason:
+          type: [string, "null"]
+        fallback_model: { type: string }
+        token_utilization_pct: { type: number }
+        usd_utilization_pct: { type: number }
+        usd_saved_vs_frontier: { type: number }
+
+    DagRunResponse:
+      type: object
+      required:
+        - trace_id
+        - acyclic
+        - topological_order
+        - dag_levels
+        - node_traces
+        - total_tokens
+        - total_cost_usd
+        - baseline_frontier_cost_usd
+        - total_latency_ms
+        - critical_path_p95_ms
+        - circuit_breaker
+        - firewall_blocked_nodes
+      properties:
+        trace_id: { type: string }
+        acyclic: { type: boolean }
+        topological_order:
+          type: array
+          items: { type: string }
+        dag_levels:
+          type: object
+          additionalProperties: { type: integer }
+        node_traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/DagNodeTrace"
+        total_tokens: { type: integer }
+        total_cost_usd: { type: number }
+        baseline_frontier_cost_usd: { type: number }
+        total_latency_ms: { type: number }
+        critical_path_p95_ms: { type: number }
+        circuit_breaker:
+          $ref: "#/components/schemas/CircuitBreakerSummary"
+        firewall_blocked_nodes:
+          type: array
+          items: { type: string }
+
+    DagErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            error_code:
+              type: string
+              enum: [DAG_CYCLE_DETECTED, INVALID_DAG_EDGE, DUPLICATE_NODE_ID]
+            message: { type: string }
+            cycle_nodes:
+              type: array
+              items: { type: string }
+
+    FirewallScanRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 64000
+        block_threshold:
+          type: integer
+          minimum: 10
+          maximum: 95
+          default: 35
+        max_prompt_tokens:
+          type: integer
+          minimum: 128
+          maximum: 32768
+          default: 2048
+
+    FirewallFinding:
+      type: object
+      required: [owasp_id, category, rule_id, vector_label, severity, weight, start, end, matched_text, remediation]
+      properties:
+        owasp_id: { type: string }
+        category: { type: string }
+        rule_id: { type: string }
+        vector_label: { type: string }
+        severity:
+          type: string
+          enum: [MEDIUM, HIGH, CRITICAL]
+        weight: { type: integer }
+        start: { type: integer }
+        end: { type: integer }
+        matched_text: { type: string }
+        remediation: { type: string }
+
+    FirewallScanResponse:
+      type: object
+      required: [decision, risk_score, severity, findings, sanitized_prompt, owasp_matrix, estimated_tokens, scan_latency_ms]
+      properties:
+        decision:
+          type: string
+          enum: [ALLOW, SANITIZE_WARN, BLOCK]
+        risk_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        severity:
+          type: string
+          enum: [SAFE, LOW, MEDIUM, HIGH, CRITICAL]
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/FirewallFinding"
+        sanitized_prompt: { type: string }
+        owasp_matrix:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [CLEAN, FLAGGED]
+        estimated_tokens: { type: integer }
+        scan_latency_ms: { type: number }
+
+    FinOpsRouteRequest:
+      type: object
+      properties:
+        monthly_calls:
+          type: integer
+          minimum: 1000
+          maximum: 100000000
+          default: 2000000
+        avg_input_tokens:
+          type: integer
+          minimum: 50
+          maximum: 128000
+          default: 1850
+        avg_output_tokens:
+          type: integer
+          minimum: 10
+          maximum: 32000
+          default: 420
+        max_p95_latency_ms:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 10000
+          default: 850.0
+        max_cost_per_1k_usd:
+          type: [number, "null"]
+          default: null
+        min_quality_index:
+          type: number
+          minimum: 50
+          maximum: 100
+          default: 88.0
+        cache_hit_rate_pct:
+          type: integer
+          minimum: 0
+          maximum: 85
+          default: 35
+        strategy:
+          type: string
+          enum: [quality_first, balanced_hybrid, cost_optimized]
+          default: balanced_hybrid
+
+    FinOpsCandidateEvaluation:
+      type: object
+      properties:
+        model_id: { type: string }
+        label: { type: string }
+        provider: { type: string }
+        tier: { type: string }
+        cost_per_1k_calls_usd: { type: number }
+        monthly_spend_usd: { type: number }
+        effective_ttft_ms: { type: number }
+        effective_p95_latency_ms: { type: number }
+        quality_index: { type: number }
+        meets_sla: { type: boolean }
+        sla_violations:
+          type: array
+          items: { type: string }
+        is_pareto_optimal: { type: boolean }
+
+    FinOpsRouteResponse:
+      type: object
+      properties:
+        strategy: { type: string }
+        recommended_model: { type: string }
+        sla_satisfied: { type: boolean }
+        monthly_spend_usd: { type: number }
+        single_frontier_monthly_usd: { type: number }
+        monthly_savings_usd: { type: number }
+        annual_savings_usd: { type: number }
+        savings_pct: { type: number }
+        effective_p95_latency_ms: { type: number }
+        quality_index: { type: number }
+        pareto_frontier_models:
+          type: array
+          items: { type: string }
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/FinOpsCandidateEvaluation"

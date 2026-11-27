@@ -554,3 +554,5 @@ export const RedTeamSandbox: React.FC<RedTeamSandboxProps> = ({
     </section>
   );
 };
+
+export default RedTeamSandbox;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Award, ChevronRight } from 'lucide-react';
 import type {
   ControlPlaneRun,
@@ -43,14 +43,18 @@ import { ScenarioDock } from './components/ScenarioDock';
 import { ExecutionGraph } from './components/ExecutionGraph';
 import { HitlBanner } from './components/HitlBanner';
 import { VerdictOutputPanel } from './components/VerdictOutputPanel';
-import { WorkflowDagBuilder } from './components/WorkflowDagBuilder';
-import { TimeTravelPanel } from './components/TimeTravelPanel';
-import { WireInspector } from './components/WireInspector';
 import { NodeInspectorModal } from './components/NodeInspectorModal';
-import { CommandPalette } from './components/CommandPalette';
-import { RedTeamSandbox } from './components/RedTeamSandbox';
-import { FinOpsSimulatorPanel } from './components/FinOpsSimulatorPanel';
-import { EnterpriseLicenseModal } from './components/EnterpriseLicenseModal';
+
+// Code-split heavy interactive labs & modals via React.lazy so entry bundle stays lean (<140 kB)
+const PromptFirewallLab = lazy(() => import('./components/PromptFirewallLab'));
+const DagWaterfallReplay = lazy(() => import('./components/DagWaterfallReplay'));
+const WorkflowDagBuilder = lazy(() => import('./components/WorkflowDagBuilder'));
+const RedTeamSandbox = lazy(() => import('./components/RedTeamSandbox'));
+const FinOpsSimulatorPanel = lazy(() => import('./components/FinOpsSimulatorPanel'));
+const TimeTravelPanel = lazy(() => import('./components/TimeTravelPanel'));
+const WireInspector = lazy(() => import('./components/WireInspector'));
+const CommandPalette = lazy(() => import('./components/CommandPalette'));
+const EnterpriseLicenseModal = lazy(() => import('./components/EnterpriseLicenseModal'));
 
 const SPEED_DELAY_MS: Record<SpeedMode, number> = {
   '0.5x': 1250,
@@ -72,12 +76,20 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 const MODULE_LINKS: Array<{ id: string; code: string; labelEn: string; labelVi: string }> = [
   { id: 'execution-graph-deck', code: '01', labelEn: 'Execution Graph', labelVi: 'Đồ Thị Thực Thi' },
-  { id: 'workflow-dag-builder', code: '02', labelEn: 'DAG Builder', labelVi: 'Thiết Kế DAG' },
-  { id: 'red-team-deck', code: '03', labelEn: 'OWASP Top-10', labelVi: 'Red-Team OWASP' },
-  { id: 'finops-deck', code: '04', labelEn: 'FinOps Pareto', labelVi: 'FinOps Pareto' },
-  { id: 'time-travel-deck', code: '05', labelEn: 'Time-Travel Diff', labelVi: 'So Sánh Fork' },
-  { id: 'wire-inspector-deck', code: '06', labelEn: 'Protocol Wire', labelVi: 'Gói Tin OTel' },
+  { id: 'prompt-firewall-deck', code: '02', labelEn: 'Prompt Firewall & Breaker', labelVi: 'Tường Lửa & Ngắt Mạch' },
+  { id: 'waterfall-replay-deck', code: '03', labelEn: 'P95/USD Waterfall', labelVi: 'Thác Nước P95/USD' },
+  { id: 'workflow-dag-builder', code: '04', labelEn: 'DAG Builder', labelVi: 'Thiết Kế DAG' },
+  { id: 'red-team-deck', code: '05', labelEn: 'OWASP Top-10', labelVi: 'Red-Team OWASP' },
+  { id: 'finops-deck', code: '06', labelEn: 'FinOps Pareto', labelVi: 'FinOps Pareto' },
+  { id: 'time-travel-deck', code: '07', labelEn: 'Time-Travel Diff', labelVi: 'So Sánh Fork' },
+  { id: 'wire-inspector-deck', code: '08', labelEn: 'Protocol Wire', labelVi: 'Gói Tin OTel' },
 ];
+
+const PanelFallback: React.FC<{ label: string }> = ({ label }) => (
+  <div className="vg-panel flex min-h-[140px] items-center justify-center rounded-lg px-4 py-6 font-mono text-[10.5px] text-[var(--vg-text-dim)]">
+    <span>LOADING MODULE // {label}...</span>
+  </div>
+);
 
 export function App() {
   const [locale, setLocale] = useState<Locale>('en');
@@ -104,7 +116,7 @@ export function App() {
   const [licenseOpen, setLicenseOpen] = useState<boolean>(false);
   const [presetTriggerCount, setPresetTriggerCount] = useState<number>(0);
 
-  // v3.0 Enterprise states: Red-Team Overlay, Multi-Model FinOps Matrix, Audit Export confirmation
+  // Enterprise states: Red-Team Overlay, Multi-Model FinOps Matrix, Audit Export confirmation
   const [redTeamResult, setRedTeamResult] = useState<RedTeamSimulationResult | null>(null);
   const [monthlyCalls, setMonthlyCalls] = useState<number>(2_000_000);
   const [cacheHitRatePct, setCacheHitRatePct] = useState<number>(45);
@@ -386,7 +398,7 @@ export function App() {
         activeBranchId={run.active_branch_id}
       />
 
-      {/* v3.0 Enterprise Quick-Jump Module Ribbon */}
+      {/* v4.0 Enterprise Quick-Jump Module Ribbon */}
       <nav
         aria-label="Control Plane Modules"
         className="border-b border-[var(--vg-border)] bg-[var(--vg-surface)]/80 px-3.5 py-1.5"
@@ -482,58 +494,78 @@ export function App() {
             byokVerdictOverride={byokVerdictOverride}
           />
 
-          {/* 02: v3.0 Custom Multi-Agent Workflow DAG Builder & Node Inspector */}
-          <WorkflowDagBuilder t={t} locale={locale} />
+          {/* 02: v4.0 Interactive OWASP LLM01-LLM10 Prompt Firewall & Token Budget Circuit Breaker */}
+          <Suspense fallback={<PanelFallback label="PROMPT FIREWALL & CIRCUIT BREAKER" />}>
+            <PromptFirewallLab t={t} locale={locale} />
+          </Suspense>
 
-          {/* 03 & 04: v3.0 Security OWASP Top-10 Suite + Multi-Model FinOps Pareto Router Matrix */}
+          {/* 03: v4.0 Interactive DAG Latency & Cost Waterfall Replay */}
+          <Suspense fallback={<PanelFallback label="DAG P95 & USD WATERFALL REPLAY" />}>
+            <DagWaterfallReplay t={t} run={run} />
+          </Suspense>
+
+          {/* 04: Custom Multi-Agent Workflow DAG Builder & Node Inspector */}
+          <Suspense fallback={<PanelFallback label="WORKFLOW DAG BUILDER" />}>
+            <WorkflowDagBuilder t={t} locale={locale} />
+          </Suspense>
+
+          {/* 05 & 06: Security OWASP Top-10 Suite + Multi-Model FinOps Pareto Router Matrix */}
           <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
             <div className="xl:col-span-6">
-              <RedTeamSandbox
-                t={t}
-                locale={locale}
-                activeResult={redTeamResult}
-                onSimulateAttack={(res) => setRedTeamResult(res)}
-                onClearOverlay={() => setRedTeamResult(null)}
-              />
+              <Suspense fallback={<PanelFallback label="OWASP RED-TEAM SUITE" />}>
+                <RedTeamSandbox
+                  t={t}
+                  locale={locale}
+                  activeResult={redTeamResult}
+                  onSimulateAttack={(res) => setRedTeamResult(res)}
+                  onClearOverlay={() => setRedTeamResult(null)}
+                />
+              </Suspense>
             </div>
             <div className="xl:col-span-6">
-              <FinOpsSimulatorPanel
-                t={t}
-                monthlyCalls={monthlyCalls}
-                onChangeMonthlyCalls={setMonthlyCalls}
-                cacheHitRatePct={cacheHitRatePct}
-                onChangeCacheHitRatePct={setCacheHitRatePct}
-                routerPolicy={routerPolicy}
-                onChangeRouterPolicy={setRouterPolicy}
-                matrix={multiModelMatrix}
-                branchSimulation={finopsSimulation}
-                onLaunchScenarioDFork={handleLaunchScenarioDFork}
-                onExportAuditBundle={handleExportAuditBundle}
-                auditExportedRecently={auditExportedRecently}
-              />
+              <Suspense fallback={<PanelFallback label="FINOPS PARETO ROUTER" />}>
+                <FinOpsSimulatorPanel
+                  t={t}
+                  monthlyCalls={monthlyCalls}
+                  onChangeMonthlyCalls={setMonthlyCalls}
+                  cacheHitRatePct={cacheHitRatePct}
+                  onChangeCacheHitRatePct={setCacheHitRatePct}
+                  routerPolicy={routerPolicy}
+                  onChangeRouterPolicy={setRouterPolicy}
+                  matrix={multiModelMatrix}
+                  branchSimulation={finopsSimulation}
+                  onLaunchScenarioDFork={handleLaunchScenarioDFork}
+                  onExportAuditBundle={handleExportAuditBundle}
+                  auditExportedRecently={auditExportedRecently}
+                />
+              </Suspense>
             </div>
           </div>
 
-          {/* 05 & 06: Time-Travel Checkpoint Forking & State Diff + 3-Protocol Wire & OTel Waterfall */}
+          {/* 07 & 08: Time-Travel Checkpoint Forking & State Diff + 3-Protocol Wire & OTel Waterfall */}
           <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
             <div className="xl:col-span-6">
-              <TimeTravelPanel
-                t={t}
-                run={run}
-                selectedCheckpointId={selectedCheckpointId}
-                onSelectCheckpoint={setSelectedCheckpointId}
-                onSelectBranch={handleSelectBranch}
-                onForkAndReplay={handleForkAndReplay}
-                presetTriggerCount={presetTriggerCount}
-              />
+              <Suspense fallback={<PanelFallback label="TIME-TRAVEL DIFF PANEL" />}>
+                <TimeTravelPanel
+                  t={t}
+                  run={run}
+                  selectedCheckpointId={selectedCheckpointId}
+                  onSelectCheckpoint={setSelectedCheckpointId}
+                  onSelectBranch={handleSelectBranch}
+                  onForkAndReplay={handleForkAndReplay}
+                  presetTriggerCount={presetTriggerCount}
+                />
+              </Suspense>
             </div>
             <div id="wire-inspector-deck" className="xl:col-span-6">
-              <WireInspector
-                t={t}
-                run={run}
-                activeTab={wireTab}
-                onChangeTab={setWireTab}
-              />
+              <Suspense fallback={<PanelFallback label="3-PROTOCOL WIRE INSPECTOR" />}>
+                <WireInspector
+                  t={t}
+                  run={run}
+                  activeTab={wireTab}
+                  onChangeTab={setWireTab}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -543,11 +575,11 @@ export function App() {
       <footer className="border-t border-[var(--vg-border)] bg-[var(--vg-panel)] px-4 py-2 font-mono text-[10px] text-[var(--vg-text-dim)]">
         <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2">
           <span>
-            VERDICT GRAPH v3.0 ENTERPRISE SUPER VIP PRO // ENGINEERED BY TRUONG VAN TINH (GITHUB.COM/TVT987)
+            VERDICT GRAPH v4.0 FULL-STACK MULTI-AGENT CONTROL PLANE // ENGINEERED BY TRUONG VAN TINH (GITHUB.COM/TVT987)
           </span>
           <div className="flex flex-wrap items-center gap-3">
             <span>
-              PROTOCOLS: MCP JSON-RPC 2.0 · A2A v0.2.2 · AG-UI SSE (RFC 6902) · OPENTELEMETRY OTLP
+              STACK: PYTHON 3.12 FASTAPI · OWASP LLM01-LLM10 · MCP · A2A · AG-UI · OPENTELEMETRY OTLP
             </span>
             <button
               type="button"
@@ -560,31 +592,39 @@ export function App() {
         </div>
       </footer>
 
-      {/* CMD+K Quick Command Palette */}
-      <CommandPalette
-        open={cmdOpen}
-        t={t}
-        onClose={() => setCmdOpen(false)}
-        onSelectScenario={(id) => handleSelectScenario(id, true)}
-        onSelectWireTab={setWireTab}
-        onToggleTheme={() => handleToggleTheme()}
-        onToggleLocale={() => setLocale((l) => (l === 'en' ? 'vi' : 'en'))}
-        onTogglePlay={handleTogglePlay}
-        onStep={handleStep}
-        onRunInstant={handleRunInstant}
-        onReset={handleReset}
-        onExportAuditBundle={handleExportAuditBundle}
-        onOpenLicenseModal={() => setLicenseOpen(true)}
-        onJumpToSection={handleJumpToSection}
-      />
+      {/* CMD+K Quick Command Palette (lazy-mounted on demand) */}
+      {cmdOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={cmdOpen}
+            t={t}
+            onClose={() => setCmdOpen(false)}
+            onSelectScenario={(id) => handleSelectScenario(id, true)}
+            onSelectWireTab={setWireTab}
+            onToggleTheme={() => handleToggleTheme()}
+            onToggleLocale={() => setLocale((l) => (l === 'en' ? 'vi' : 'en'))}
+            onTogglePlay={handleTogglePlay}
+            onStep={handleStep}
+            onRunInstant={handleRunInstant}
+            onReset={handleReset}
+            onExportAuditBundle={handleExportAuditBundle}
+            onOpenLicenseModal={() => setLicenseOpen(true)}
+            onJumpToSection={handleJumpToSection}
+          />
+        </Suspense>
+      )}
 
-      {/* Enterprise License Quote & Live MBBank VietQR Modal */}
-      <EnterpriseLicenseModal
-        open={licenseOpen}
-        t={t}
-        locale={locale}
-        onClose={() => setLicenseOpen(false)}
-      />
+      {/* Enterprise License Quote & Live MBBank VietQR Modal (lazy-mounted on demand) */}
+      {licenseOpen && (
+        <Suspense fallback={null}>
+          <EnterpriseLicenseModal
+            open={licenseOpen}
+            t={t}
+            locale={locale}
+            onClose={() => setLicenseOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -56,6 +56,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       { id: 'scn-b', group: 'SCENARIOS', label: 'Launch Scenario B — Indirect Prompt Injection Defense', run: () => onSelectScenario('prompt_injection') },
       { id: 'scn-c', group: 'SCENARIOS', label: 'Launch Scenario C — Cross-Org A2A Financial Audit', run: () => onSelectScenario('a2a_financial_audit') },
       { id: 'scn-d', group: 'SCENARIOS', label: 'Launch Scenario D — Hallucination Recovery via Time-Travel Fork', run: () => onSelectScenario('hallucination_fork') },
+      { id: 'v4-firewall', group: 'GUARDRAIL v4.0', label: 'Jump to Interactive Prompt Firewall (OWASP LLM01-LLM10) & Token Budget Circuit Breaker', run: () => onJumpToSection('prompt-firewall-deck') },
+      { id: 'v4-waterfall', group: 'TELEMETRY v4.0', label: 'Jump to Interactive DAG Latency & Cost Waterfall Replay', run: () => onJumpToSection('waterfall-replay-deck') },
       { id: 'v3-dag', group: 'WORKFLOW v3.0', label: 'Jump to Custom Multi-Agent Workflow DAG Builder & Node Inspector', run: () => onJumpToSection('workflow-dag-builder') },
       { id: 'v3-timetravel', group: 'DIFF v3.0', label: 'Jump to Time-Travel Forking & Side-by-Side State Diff Viewer', run: () => onJumpToSection('time-travel-deck') },
       { id: 'v3-redteam', group: 'SECURITY v3.0', label: 'Jump to OWASP LLM Top-10 Red-Team Adversarial Suite', run: () => onJumpToSection('red-team-deck') },
@@ -163,7 +165,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div className="flex items-center justify-between border-t border-[var(--vg-border)] bg-[var(--vg-surface)] px-3.5 py-1.5 font-mono text-[10px] text-[var(--vg-text-dim)]">
           <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" /> VERDICT GRAPH v3.0 ENTERPRISE QUICK DISPATCH
+            <Command className="h-3 w-3" /> VERDICT GRAPH v4.0 ENTERPRISE QUICK DISPATCH
           </span>
           <span>ESC TO CLOSE</span>
         </div>
@@ -171,3 +173,5 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     </div>
   );
 };
+
+export default CommandPalette;

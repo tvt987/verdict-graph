@@ -10,9 +10,32 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          icons: ['lucide-react'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (
+              id.includes('/react/') ||
+              id.includes('\\react\\') ||
+              id.includes('/react-dom/') ||
+              id.includes('\\react-dom\\') ||
+              id.includes('/scheduler/') ||
+              id.includes('\\scheduler\\')
+            ) {
+              return 'react';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            return 'vendor';
+          }
+          if (
+            id.includes('/src/engine/') ||
+            id.includes('\\src\\engine\\') ||
+            id.includes('/src/engines/') ||
+            id.includes('\\src\\engines\\')
+          ) {
+            return 'engines';
+          }
+          return undefined;
         },
       },
     },

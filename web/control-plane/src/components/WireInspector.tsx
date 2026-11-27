@@ -378,3 +378,5 @@ export const WireInspector: React.FC<WireInspectorProps> = ({
     </section>
   );
 };
+
+export default WireInspector;

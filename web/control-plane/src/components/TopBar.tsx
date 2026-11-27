@@ -96,7 +96,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 data-testid="version-badge"
                 className="rounded border border-emerald-400/50 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold tracking-wider text-emerald-400"
               >
-                v3.0 PRO
+                v4.0 PRO
               </span>
               <span className="rounded border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-wider text-sky-400">
                 {activeBranchId.toUpperCase()}
