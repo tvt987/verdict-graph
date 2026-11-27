@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
-  title: Verdict Graph v4.0 Multi-Agent Control Plane API
-  version: 4.0.0
+  title: Verdict Graph v5.0 Multi-Agent Control Plane API
+  version: 5.0.0
   description: >
     Production Python 3.12 FastAPI control plane exposing deterministic multi-agent DAG
     topological validation and cycle detection, Token/USD Budget Circuit Breakers
     (HARD_STOP vs Frontier-to-Flash DOWNGRADE_MODEL), OWASP LLM01-LLM10 Prompt Firewall
-    scanning, and FinOps Pareto model routing.
+    scanning, FinOps Pareto model routing, and the v5.0 6-Model Pareto Cascading Routing Arena.
   contact:
     name: Truong Van Tinh
     url: https://github.com/tvt987/verdict-graph
@@ -26,7 +26,9 @@ tags:
   - name: Prompt Firewall
     description: Multi-vector OWASP LLM01-LLM10 prompt inspection and redaction
   - name: FinOps Router
-    description: Pareto-optimal model routing under latency, cost, and quality SLAs
+    description: Pareto-optimal single-model routing under latency, cost, and quality SLAs
+  - name: Multi-Model Routing Arena
+    description: 6-model Pareto frontier curve and cascading router policy optimizer (Fast + Frontier + Human Escalation)
 
 paths:
   /health:
@@ -105,11 +107,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/FinOpsRouteResponse"
 
+  /api/v1/routing/pareto-optimize:
+    post:
+      tags: [Multi-Model Routing Arena]
+      summary: Compute 6-model Pareto frontier and optimal cascading router policy
+      operationId: optimizeParetoRouting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParetoOptimizeRequest"
+      responses:
+        "200":
+          description: Pareto frontier models, optimal cascade split, prompt-cache savings, and monthly FinOps ROI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParetoOptimizeResponse"
+        "400":
+          description: Unknown baseline model identifier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoutingErrorResponse"
+
 components:
   schemas:
     HealthResponse:
       type: object
-      required: [status, service, version, models_registered, owasp_rules_loaded, capabilities]
+      required: [status, service, version, models_registered, arena_models_registered, owasp_rules_loaded, capabilities]
       properties:
         status:
           type: string
@@ -119,8 +146,11 @@ components:
           example: verdict-graph-control-plane-api
         version:
           type: string
-          example: 4.0.0
+          example: 5.0.0
         models_registered:
+          type: integer
+          example: 6
+        arena_models_registered:
           type: integer
           example: 6
         owasp_rules_loaded:
@@ -486,3 +516,134 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FinOpsCandidateEvaluation"
+
+    ParetoOptimizeRequest:
+      type: object
+      properties:
+        monthly_request_volume:
+          type: integer
+          minimum: 100000
+          maximum: 20000000
+          default: 2500000
+        quality_floor_pct:
+          type: number
+          minimum: 85.0
+          maximum: 99.0
+          default: 94.0
+        p95_latency_budget_ms:
+          type: number
+          minimum: 400.0
+          maximum: 3000.0
+          default: 1100.0
+        prompt_cache_hit_rate_pct:
+          type: integer
+          minimum: 0
+          maximum: 85
+          default: 40
+        avg_input_tokens:
+          type: integer
+          minimum: 50
+          maximum: 128000
+          default: 1800
+        avg_output_tokens:
+          type: integer
+          minimum: 10
+          maximum: 32000
+          default: 450
+        baseline_model_id:
+          type: string
+          default: claude-4.5-sonnet
+          enum:
+            - claude-4.5-sonnet
+            - gpt-5
+            - gemini-2.5-pro
+            - deepseek-r1
+            - gemini-2.5-flash
+            - llama-4-70b-self-hosted
+
+    EvaluatedRoutingModel:
+      type: object
+      properties:
+        model_id: { type: string }
+        label: { type: string }
+        provider: { type: string }
+        tier:
+          type: string
+          enum: [frontier, reasoning, flash, open_weight]
+        input_usd_per_1m: { type: number }
+        output_usd_per_1m: { type: number }
+        ttft_ms: { type: number }
+        effective_ttft_ms: { type: number }
+        p95_latency_ms: { type: number }
+        effective_p95_ms: { type: number }
+        groundedness_pct: { type: number }
+        json_schema_adherence_pct: { type: number }
+        uncached_cost_per_1k_usd: { type: number }
+        effective_cost_per_1k_usd: { type: number }
+        monthly_spend_usd: { type: number }
+        meets_quality_floor: { type: boolean }
+        meets_latency_budget: { type: boolean }
+        meets_sla: { type: boolean }
+        is_pareto_optimal: { type: boolean }
+        accent_hex: { type: string }
+
+    CascadeSlice:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        role:
+          type: string
+          enum: [fast, frontier, human_escalation]
+        share_pct: { type: integer }
+        monthly_requests: { type: integer }
+        cost_per_1k_usd: { type: number }
+        monthly_spend_usd: { type: number }
+        effective_ttft_ms: { type: number }
+        groundedness_pct: { type: number }
+        accent_hex: { type: string }
+
+    ParetoOptimizeResponse:
+      type: object
+      properties:
+        sla_satisfied: { type: boolean }
+        sla_warnings:
+          type: array
+          items: { type: string }
+        policy_summary: { type: string }
+        pareto_frontier_models:
+          type: array
+          items: { type: string }
+        cascade_slices:
+          type: array
+          items:
+            $ref: "#/components/schemas/CascadeSlice"
+        blended_cost_per_1k_usd: { type: number }
+        blended_monthly_spend_usd: { type: number }
+        blended_groundedness_pct: { type: number }
+        blended_json_adherence_pct: { type: number }
+        blended_ttft_ms: { type: number }
+        blended_p95_latency_ms: { type: number }
+        baseline_model_id: { type: string }
+        baseline_model_label: { type: string }
+        single_frontier_monthly_usd: { type: number }
+        single_frontier_uncached_monthly_usd: { type: number }
+        prompt_cache_monthly_savings_usd: { type: number }
+        monthly_savings_usd: { type: number }
+        annual_savings_usd: { type: number }
+        savings_pct: { type: number }
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluatedRoutingModel"
+
+    RoutingErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            error_code:
+              type: string
+              example: UNKNOWN_BASELINE_MODEL
+            message: { type: string }

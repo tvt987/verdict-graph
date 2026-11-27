@@ -22,16 +22,18 @@ client = TestClient(app)
 # ============================================================================
 
 
-def test_health_endpoint_returns_v4_metadata() -> None:
+def test_health_endpoint_returns_v5_metadata() -> None:
     res = client.get("/health")
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ok"
-    assert body["version"] == "4.0.0"
+    assert body["version"] == "5.0.0"
     assert body["owasp_rules_loaded"] == 10
     assert body["models_registered"] >= 5
+    assert body["arena_models_registered"] == 6
     assert "dag-topological-cycle-detection" in body["capabilities"]
     assert "token-usd-budget-circuit-breaker" in body["capabilities"]
+    assert "multi-model-pareto-cascade-arena" in body["capabilities"]
 
 
 # ============================================================================
@@ -458,3 +460,238 @@ def test_finops_router_reports_unsatisfied_sla_gracefully() -> None:
     data = res.json()
     assert data["sla_satisfied"] is False
     assert all(not c["meets_sla"] for c in data["candidates"])
+
+
+# ============================================================================
+# 6. v5.0 Multi-Model Pareto Cascade Routing Arena (/api/v1/routing/pareto-optimize)
+# ============================================================================
+
+
+def test_pareto_optimize_default_returns_six_models_and_profitable_cascade() -> None:
+    res = client.post("/api/v1/routing/pareto-optimize", json={})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sla_satisfied"] is True
+    assert data["sla_warnings"] == []
+    assert len(data["models"]) == 6
+    model_ids = {m["model_id"] for m in data["models"]}
+    assert model_ids == {
+        "claude-4.5-sonnet",
+        "gpt-5",
+        "gemini-2.5-pro",
+        "deepseek-r1",
+        "gemini-2.5-flash",
+        "llama-4-70b-self-hosted",
+    }
+    assert sum(s["share_pct"] for s in data["cascade_slices"]) == 100
+    assert sum(s["monthly_requests"] for s in data["cascade_slices"]) == 2_500_000
+    assert data["blended_groundedness_pct"] >= 94.0
+    assert data["blended_p95_latency_ms"] <= 1100.0
+    assert data["monthly_savings_usd"] > 10_000.0
+    assert data["savings_pct"] > 50.0
+    assert data["annual_savings_usd"] == pytest.approx(data["monthly_savings_usd"] * 12.0, abs=0.5)
+
+
+def test_pareto_optimize_frontier_models_are_strictly_non_dominated() -> None:
+    res = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"monthly_request_volume": 3_000_000, "prompt_cache_hit_rate_pct": 35},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    frontier_ids = set(data["pareto_frontier_models"])
+    assert len(frontier_ids) >= 3
+    models = data["models"]
+    for m in models:
+        if m["model_id"] in frontier_ids:
+            assert m["is_pareto_optimal"] is True
+            dominated = any(
+                o["model_id"] != m["model_id"]
+                and o["effective_cost_per_1k_usd"] <= m["effective_cost_per_1k_usd"]
+                and o["groundedness_pct"] >= m["groundedness_pct"]
+                and (
+                    o["effective_cost_per_1k_usd"] < m["effective_cost_per_1k_usd"]
+                    or o["groundedness_pct"] > m["groundedness_pct"]
+                )
+                for o in models
+            )
+            assert dominated is False
+
+
+def test_pareto_optimize_quality_floor_monotonically_raises_groundedness_and_spend() -> None:
+    low_q = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"quality_floor_pct": 89.5, "p95_latency_budget_ms": 1500.0, "prompt_cache_hit_rate_pct": 30},
+    ).json()
+    mid_q = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"quality_floor_pct": 94.5, "p95_latency_budget_ms": 1500.0, "prompt_cache_hit_rate_pct": 30},
+    ).json()
+    high_q = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"quality_floor_pct": 97.5, "p95_latency_budget_ms": 1500.0, "prompt_cache_hit_rate_pct": 30},
+    ).json()
+
+    assert low_q["sla_satisfied"] is True
+    assert mid_q["sla_satisfied"] is True
+    assert high_q["sla_satisfied"] is True
+    assert low_q["blended_groundedness_pct"] <= mid_q["blended_groundedness_pct"]
+    assert mid_q["blended_groundedness_pct"] <= high_q["blended_groundedness_pct"]
+    assert high_q["blended_groundedness_pct"] >= 97.5
+    assert high_q["blended_monthly_spend_usd"] > low_q["blended_monthly_spend_usd"]
+
+
+def test_pareto_optimize_tight_latency_budget_enforces_p95_and_flags_slow_models() -> None:
+    res = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={
+            "monthly_request_volume": 2_000_000,
+            "quality_floor_pct": 92.0,
+            "p95_latency_budget_ms": 500.0,
+            "prompt_cache_hit_rate_pct": 25,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sla_satisfied"] is True
+    assert data["blended_p95_latency_ms"] <= 500.0
+    deepseek = next(m for m in data["models"] if m["model_id"] == "deepseek-r1")
+    assert deepseek["meets_latency_budget"] is False
+    assert deepseek["meets_sla"] is False
+
+
+def test_pareto_optimize_prompt_cache_hit_rate_reduces_spend_and_ttft() -> None:
+    zero_cache = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={
+            "monthly_request_volume": 4_000_000,
+            "quality_floor_pct": 95.0,
+            "p95_latency_budget_ms": 2500.0,
+            "prompt_cache_hit_rate_pct": 0,
+        },
+    ).json()
+    high_cache = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={
+            "monthly_request_volume": 4_000_000,
+            "quality_floor_pct": 95.0,
+            "p95_latency_budget_ms": 2500.0,
+            "prompt_cache_hit_rate_pct": 85,
+        },
+    ).json()
+
+    assert zero_cache["prompt_cache_monthly_savings_usd"] == 0.0
+    assert high_cache["prompt_cache_monthly_savings_usd"] > 0.0
+    assert high_cache["blended_monthly_spend_usd"] < zero_cache["blended_monthly_spend_usd"]
+    assert high_cache["blended_ttft_ms"] < zero_cache["blended_ttft_ms"]
+
+    # Every individual model profile must strictly improve in TTFT, P95, and cost under 85% cache
+    zero_by_id = {m["model_id"]: m for m in zero_cache["models"]}
+    for m in high_cache["models"]:
+        z = zero_by_id[m["model_id"]]
+        assert m["effective_ttft_ms"] < z["effective_ttft_ms"]
+        assert m["effective_p95_ms"] < z["effective_p95_ms"]
+        assert m["effective_cost_per_1k_usd"] < z["effective_cost_per_1k_usd"]
+
+
+def test_pareto_optimize_scales_linearly_from_100k_to_20m_requests() -> None:
+    small = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"monthly_request_volume": 100_000, "quality_floor_pct": 94.0, "p95_latency_budget_ms": 1100.0},
+    ).json()
+    large = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"monthly_request_volume": 20_000_000, "quality_floor_pct": 94.0, "p95_latency_budget_ms": 1100.0},
+    ).json()
+
+    assert small["policy_summary"] == large["policy_summary"]
+    assert large["blended_monthly_spend_usd"] / small["blended_monthly_spend_usd"] == pytest.approx(200.0, rel=1e-3)
+    assert large["monthly_savings_usd"] / small["monthly_savings_usd"] == pytest.approx(200.0, rel=1e-3)
+
+
+def test_pareto_optimize_reports_unsatisfiable_extreme_sla_with_warnings() -> None:
+    res = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={
+            "monthly_request_volume": 1_000_000,
+            "quality_floor_pct": 99.0,
+            "p95_latency_budget_ms": 400.0,
+            "prompt_cache_hit_rate_pct": 0,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["sla_satisfied"] is False
+    assert len(data["sla_warnings"]) >= 1
+    assert sum(s["share_pct"] for s in data["cascade_slices"]) == 100
+
+
+def test_pareto_optimize_custom_gpt5_baseline_raises_dollar_savings() -> None:
+    claude_base = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"monthly_request_volume": 2_500_000, "baseline_model_id": "claude-4.5-sonnet"},
+    ).json()
+    gpt5_base = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"monthly_request_volume": 2_500_000, "baseline_model_id": "gpt-5"},
+    ).json()
+
+    assert gpt5_base["baseline_model_id"] == "gpt-5"
+    assert gpt5_base["single_frontier_monthly_usd"] > claude_base["single_frontier_monthly_usd"]
+    assert gpt5_base["monthly_savings_usd"] > claude_base["monthly_savings_usd"]
+
+
+def test_pareto_optimize_rejects_unknown_baseline_model_with_400() -> None:
+    res = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={"baseline_model_id": "nonexistent-model-v99"},
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"]["error_code"] == "UNKNOWN_BASELINE_MODEL"
+
+
+@pytest.mark.parametrize(
+    "bad_payload",
+    [
+        {"monthly_request_volume": 50_000},
+        {"monthly_request_volume": 25_000_000},
+        {"quality_floor_pct": 80.0},
+        {"quality_floor_pct": 99.5},
+        {"p95_latency_budget_ms": 300.0},
+        {"prompt_cache_hit_rate_pct": 95},
+    ],
+)
+def test_pareto_optimize_validates_request_bounds_with_422(bad_payload: dict[str, object]) -> None:
+    res = client.post("/api/v1/routing/pareto-optimize", json=bad_payload)
+    assert res.status_code == 422
+
+
+def test_pareto_optimize_custom_token_lengths_preserve_request_totals() -> None:
+    res = client.post(
+        "/api/v1/routing/pareto-optimize",
+        json={
+            "monthly_request_volume": 1_234_567,
+            "avg_input_tokens": 3600,
+            "avg_output_tokens": 900,
+            "quality_floor_pct": 95.5,
+            "p95_latency_budget_ms": 1400.0,
+            "prompt_cache_hit_rate_pct": 50,
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert sum(s["share_pct"] for s in data["cascade_slices"]) == 100
+    assert sum(s["monthly_requests"] for s in data["cascade_slices"]) == 1_234_567
+    assert data["blended_json_adherence_pct"] >= 94.0
+
+
+def test_pareto_optimize_is_strictly_deterministic_across_repeated_calls() -> None:
+    payload = {
+        "monthly_request_volume": 5_000_000,
+        "quality_floor_pct": 95.2,
+        "p95_latency_budget_ms": 950.0,
+        "prompt_cache_hit_rate_pct": 45,
+    }
+    first = client.post("/api/v1/routing/pareto-optimize", json=payload).json()
+    second = client.post("/api/v1/routing/pareto-optimize", json=payload).json()
+    assert first == second

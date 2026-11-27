@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Command, CornerDownLeft, Search, X } from 'lucide-react';
 import type { ScenarioId, WireTab } from '../types/protocol';
 import type { Translations } from '../i18n/translations';
+import type { WorkspaceTab } from './TopBar';
 
 export interface CommandItem {
   id: string;
@@ -15,6 +16,7 @@ interface CommandPaletteProps {
   open: boolean;
   t: Translations;
   onClose: () => void;
+  onSelectWorkspace: (tab: WorkspaceTab) => void;
   onSelectScenario: (id: ScenarioId) => void;
   onSelectWireTab: (tab: WireTab) => void;
   onToggleTheme: () => void;
@@ -25,13 +27,13 @@ interface CommandPaletteProps {
   onReset: () => void;
   onExportAuditBundle: () => void;
   onOpenLicenseModal: () => void;
-  onJumpToSection: (sectionId: string) => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   t,
   onClose,
+  onSelectWorkspace,
   onSelectScenario,
   onSelectWireTab,
   onToggleTheme,
@@ -42,7 +44,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onReset,
   onExportAuditBundle,
   onOpenLicenseModal,
-  onJumpToSection,
 }) => {
   const [query, setQuery] = useState('');
 
@@ -52,37 +53,35 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const commands: CommandItem[] = useMemo(
     () => [
-      { id: 'scn-a', group: 'SCENARIOS', label: 'Launch Scenario A — Production Outage & HITL Rollback', run: () => onSelectScenario('outage_rollback') },
-      { id: 'scn-b', group: 'SCENARIOS', label: 'Launch Scenario B — Indirect Prompt Injection Defense', run: () => onSelectScenario('prompt_injection') },
-      { id: 'scn-c', group: 'SCENARIOS', label: 'Launch Scenario C — Cross-Org A2A Financial Audit', run: () => onSelectScenario('a2a_financial_audit') },
-      { id: 'scn-d', group: 'SCENARIOS', label: 'Launch Scenario D — Hallucination Recovery via Time-Travel Fork', run: () => onSelectScenario('hallucination_fork') },
-      { id: 'v4-firewall', group: 'GUARDRAIL v4.0', label: 'Jump to Interactive Prompt Firewall (OWASP LLM01-LLM10) & Token Budget Circuit Breaker', run: () => onJumpToSection('prompt-firewall-deck') },
-      { id: 'v4-waterfall', group: 'TELEMETRY v4.0', label: 'Jump to Interactive DAG Latency & Cost Waterfall Replay', run: () => onJumpToSection('waterfall-replay-deck') },
-      { id: 'v3-dag', group: 'WORKFLOW v3.0', label: 'Jump to Custom Multi-Agent Workflow DAG Builder & Node Inspector', run: () => onJumpToSection('workflow-dag-builder') },
-      { id: 'v3-timetravel', group: 'DIFF v3.0', label: 'Jump to Time-Travel Forking & Side-by-Side State Diff Viewer', run: () => onJumpToSection('time-travel-deck') },
-      { id: 'v3-redteam', group: 'SECURITY v3.0', label: 'Jump to OWASP LLM Top-10 Red-Team Adversarial Suite', run: () => onJumpToSection('red-team-deck') },
-      { id: 'v3-finops', group: 'FINOPS v3.0', label: 'Jump to Multi-Model FinOps Cost/Latency Router Matrix (Pareto)', run: () => onJumpToSection('finops-deck') },
-      { id: 'v3-license', group: 'ENTERPRISE v3.0', label: 'Open Enterprise License Quote (19.9M VND) & MBBank VietQR Modal', run: onOpenLicenseModal },
-      { id: 'v3-export', group: 'AUDIT v3.0', label: 'Export Signed JSON Trace + OpenTelemetry OTLP Audit Bundle', run: onExportAuditBundle },
-      { id: 'tab-mcp', group: 'WIRE INSPECTOR', label: 'Open MCP Wire Tab (JSON-RPC 2.0)', run: () => onSelectWireTab('mcp') },
-      { id: 'tab-a2a', group: 'WIRE INSPECTOR', label: 'Open A2A Wire Tab (AgentCard & Signed Tasks)', run: () => onSelectWireTab('a2a') },
-      { id: 'tab-agui', group: 'WIRE INSPECTOR', label: 'Open AG-UI Stream Tab (SSE & RFC 6902 Patch)', run: () => onSelectWireTab('agui') },
-      { id: 'tab-otel', group: 'WIRE INSPECTOR', label: 'Open OpenTelemetry GenAI Trace Waterfall', run: () => onSelectWireTab('otel') },
+      { id: 'ws-orch', group: 'WORKSPACE', label: 'Open Orchestrator DAG & Photonic Execution Graph', run: () => onSelectWorkspace('orchestrator') },
+      { id: 'ws-fw', group: 'WORKSPACE', label: 'Open OWASP LLM01-LLM10 Prompt Firewall & Token Circuit Breaker', run: () => onSelectWorkspace('firewall') },
+      { id: 'ws-arena', group: 'WORKSPACE', label: 'Open Multi-Model FinOps Routing & Pareto Frontier Arena (6 Models)', run: () => onSelectWorkspace('routing') },
+      { id: 'ws-audit', group: 'WORKSPACE', label: 'Open Audit & OTLP (Time-Travel Diff & 3-Protocol Wire Inspector)', run: () => onSelectWorkspace('audit') },
+      { id: 'scn-a', group: 'SCENARIOS', label: 'Launch Scenario A — Production Outage & HITL Rollback', run: () => { onSelectWorkspace('orchestrator'); onSelectScenario('outage_rollback'); } },
+      { id: 'scn-b', group: 'SCENARIOS', label: 'Launch Scenario B — Indirect Prompt Injection Defense', run: () => { onSelectWorkspace('orchestrator'); onSelectScenario('prompt_injection'); } },
+      { id: 'scn-c', group: 'SCENARIOS', label: 'Launch Scenario C — Cross-Org A2A Financial Audit', run: () => { onSelectWorkspace('orchestrator'); onSelectScenario('a2a_financial_audit'); } },
+      { id: 'scn-d', group: 'SCENARIOS', label: 'Launch Scenario D — Hallucination Recovery via Time-Travel Fork', run: () => { onSelectWorkspace('orchestrator'); onSelectScenario('hallucination_fork'); } },
+      { id: 'tab-mcp', group: 'WIRE INSPECTOR', label: 'Inspect MCP Wire Frames (JSON-RPC 2.0)', run: () => { onSelectWorkspace('audit'); onSelectWireTab('mcp'); } },
+      { id: 'tab-a2a', group: 'WIRE INSPECTOR', label: 'Inspect A2A AgentCard & Signed Tasks', run: () => { onSelectWorkspace('audit'); onSelectWireTab('a2a'); } },
+      { id: 'tab-agui', group: 'WIRE INSPECTOR', label: 'Inspect AG-UI Stream (SSE & RFC 6902 Patch)', run: () => { onSelectWorkspace('audit'); onSelectWireTab('agui'); } },
+      { id: 'tab-otel', group: 'WIRE INSPECTOR', label: 'Inspect OpenTelemetry GenAI Span Waterfall', run: () => { onSelectWorkspace('audit'); onSelectWireTab('otel'); } },
       { id: 'act-play', group: 'TRANSPORT', label: 'Play / Pause Auto-Execution', shortcut: 'SPACE', run: onTogglePlay },
       { id: 'act-step', group: 'TRANSPORT', label: 'Step Single Execution Node', shortcut: 'N', run: onStep },
       { id: 'act-instant', group: 'TRANSPORT', label: 'Run Current Scenario Instant to Pause / Completion', run: onRunInstant },
       { id: 'act-reset', group: 'TRANSPORT', label: 'Reset Active Execution Graph & Checkpointer', shortcut: 'R', run: onReset },
-      { id: 'ui-theme', group: 'INTERFACE', label: 'Toggle Aerospace Obsidian / Light Technical Blueprint', run: onToggleTheme },
+      { id: 'v5-export', group: 'AUDIT', label: 'Export Signed JSON Trace + OpenTelemetry OTLP Audit Bundle', run: onExportAuditBundle },
+      { id: 'v5-license', group: 'ENTERPRISE', label: 'Open Enterprise Commercial License Quote & VietQR', run: onOpenLicenseModal },
+      { id: 'ui-theme', group: 'INTERFACE', label: 'Toggle Daylight Studio / Obsidian Graphite Theme', run: onToggleTheme },
       { id: 'ui-locale', group: 'INTERFACE', label: 'Switch Interface Language (EN / VI)', run: onToggleLocale },
     ],
     [
       onExportAuditBundle,
-      onJumpToSection,
       onOpenLicenseModal,
       onReset,
       onRunInstant,
       onSelectScenario,
       onSelectWireTab,
+      onSelectWorkspace,
       onStep,
       onToggleLocale,
       onTogglePlay,
@@ -102,35 +101,36 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/65 px-4 pt-20 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/55 px-4 pt-20 backdrop-blur-xs"
       onClick={onClose}
       data-testid="command-palette-overlay"
     >
       <div
-        className="vg-panel w-full max-w-xl overflow-hidden rounded-lg border-sky-400/40 shadow-2xl"
+        className="vg-panel w-full max-w-xl overflow-hidden rounded-xl border-[var(--vg-accent-border)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-[var(--vg-border)] px-3.5 py-2.5">
-          <Search className="h-4 w-4 text-sky-400" />
+        <div className="flex items-center gap-2.5 border-b border-[var(--vg-border)] px-4 py-3">
+          <Search className="h-4 w-4 text-[var(--vg-accent)]" />
           <input
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.cmdPlaceholder}
-            className="w-full bg-transparent font-mono text-xs text-[var(--vg-text)] outline-none placeholder:text-[var(--vg-text-dim)]"
+            className="w-full bg-transparent text-xs text-[var(--vg-text)] outline-none placeholder:text-[var(--vg-text-dim)]"
           />
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-[var(--vg-text-muted)] hover:text-[var(--vg-text)]"
+            className="rounded-md p-1 text-[var(--vg-text-muted)] hover:bg-[var(--vg-surface)] hover:text-[var(--vg-text)]"
+            aria-label="Close Command Palette"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="max-h-80 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="p-4 text-center font-mono text-xs text-[var(--vg-text-dim)]">
+            <p className="p-5 text-center font-mono text-xs text-[var(--vg-text-dim)]">
               No matching control plane commands.
             </p>
           ) : (
@@ -142,30 +142,30 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   cmd.run();
                   onClose();
                 }}
-                className="flex w-full items-center justify-between rounded px-2.5 py-2 text-left transition-colors hover:bg-sky-500/15"
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--vg-accent-soft)]"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-sky-400">
+                  <span className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-0.5 font-mono text-[9.5px] font-bold text-[var(--vg-accent)]">
                     {cmd.group}
                   </span>
-                  <span className="text-xs text-[var(--vg-text)]">{cmd.label}</span>
+                  <span className="text-xs font-medium text-[var(--vg-text)]">{cmd.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {cmd.shortcut && (
-                    <kbd className="rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--vg-text-dim)]">
+                    <kbd className="rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-1.5 py-0.5 font-mono text-[9.5px] text-[var(--vg-text-dim)]">
                       {cmd.shortcut}
                     </kbd>
                   )}
-                  <CornerDownLeft className="h-3 w-3 text-[var(--vg-text-dim)]" />
+                  <CornerDownLeft className="h-3.5 w-3.5 text-[var(--vg-text-dim)]" />
                 </div>
               </button>
             ))
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-[var(--vg-border)] bg-[var(--vg-surface)] px-3.5 py-1.5 font-mono text-[10px] text-[var(--vg-text-dim)]">
-          <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" /> VERDICT GRAPH v4.0 ENTERPRISE QUICK DISPATCH
+        <div className="flex items-center justify-between border-t border-[var(--vg-border)] bg-[var(--vg-surface)] px-4 py-2 font-mono text-[10px] text-[var(--vg-text-dim)]">
+          <span className="flex items-center gap-1.5">
+            <Command className="h-3 w-3" /> VERDICT GRAPH v5.0 QUICK DISPATCH
           </span>
           <span>ESC TO CLOSE</span>
         </div>

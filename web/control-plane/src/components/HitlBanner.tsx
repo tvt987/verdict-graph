@@ -20,7 +20,7 @@ export const HitlBanner: React.FC<HitlBannerProps> = ({ t, context, onDecide }) 
   return (
     <section
       data-testid="hitl-approval-banner"
-      className="rounded-lg border border-amber-400/55 bg-amber-500/10 p-4 shadow-[0_0_24px_rgba(245,158,11,0.12)]"
+      className="vg-panel rounded-xl border-amber-500/45 bg-amber-500/8 p-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">

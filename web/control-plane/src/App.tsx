@@ -1,5 +1,17 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { Award, ChevronRight } from 'lucide-react';
+import {
+  Activity,
+  Award,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Cpu,
+  DollarSign,
+  Download,
+  Gauge,
+  GitFork,
+  ShieldCheck,
+} from 'lucide-react';
 import type {
   ControlPlaneRun,
   HitlAction,
@@ -38,14 +50,15 @@ import {
   buildSignedAuditBundle,
   triggerAuditBundleDownload,
 } from './engine/auditExport';
-import { TopBar } from './components/TopBar';
+import { TopBar, type WorkspaceTab } from './components/TopBar';
 import { ScenarioDock } from './components/ScenarioDock';
 import { ExecutionGraph } from './components/ExecutionGraph';
 import { HitlBanner } from './components/HitlBanner';
 import { VerdictOutputPanel } from './components/VerdictOutputPanel';
 import { NodeInspectorModal } from './components/NodeInspectorModal';
 
-// Code-split heavy interactive labs & modals via React.lazy so entry bundle stays lean (<140 kB)
+// Code-split heavy interactive workspaces & modals via React.lazy so entry bundle stays lean (<95 kB)
+const ModelRoutingArena = lazy(() => import('./components/ModelRoutingArena'));
 const PromptFirewallLab = lazy(() => import('./components/PromptFirewallLab'));
 const DagWaterfallReplay = lazy(() => import('./components/DagWaterfallReplay'));
 const WorkflowDagBuilder = lazy(() => import('./components/WorkflowDagBuilder'));
@@ -55,6 +68,8 @@ const TimeTravelPanel = lazy(() => import('./components/TimeTravelPanel'));
 const WireInspector = lazy(() => import('./components/WireInspector'));
 const CommandPalette = lazy(() => import('./components/CommandPalette'));
 const EnterpriseLicenseModal = lazy(() => import('./components/EnterpriseLicenseModal'));
+
+const SPEED_OPTIONS: SpeedMode[] = ['0.5x', '1x', '2x', 'instant'];
 
 const SPEED_DELAY_MS: Record<SpeedMode, number> = {
   '0.5x': 1250,
@@ -74,26 +89,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-const MODULE_LINKS: Array<{ id: string; code: string; labelEn: string; labelVi: string }> = [
-  { id: 'execution-graph-deck', code: '01', labelEn: 'Execution Graph', labelVi: 'Đồ Thị Thực Thi' },
-  { id: 'prompt-firewall-deck', code: '02', labelEn: 'Prompt Firewall & Breaker', labelVi: 'Tường Lửa & Ngắt Mạch' },
-  { id: 'waterfall-replay-deck', code: '03', labelEn: 'P95/USD Waterfall', labelVi: 'Thác Nước P95/USD' },
-  { id: 'workflow-dag-builder', code: '04', labelEn: 'DAG Builder', labelVi: 'Thiết Kế DAG' },
-  { id: 'red-team-deck', code: '05', labelEn: 'OWASP Top-10', labelVi: 'Red-Team OWASP' },
-  { id: 'finops-deck', code: '06', labelEn: 'FinOps Pareto', labelVi: 'FinOps Pareto' },
-  { id: 'time-travel-deck', code: '07', labelEn: 'Time-Travel Diff', labelVi: 'So Sánh Fork' },
-  { id: 'wire-inspector-deck', code: '08', labelEn: 'Protocol Wire', labelVi: 'Gói Tin OTel' },
-];
-
 const PanelFallback: React.FC<{ label: string }> = ({ label }) => (
-  <div className="vg-panel flex min-h-[140px] items-center justify-center rounded-lg px-4 py-6 font-mono text-[10.5px] text-[var(--vg-text-dim)]">
-    <span>LOADING MODULE // {label}...</span>
+  <div className="vg-panel flex min-h-[180px] items-center justify-center rounded-xl px-5 py-8 font-mono text-xs text-[var(--vg-text-dim)]">
+    <span>LOADING WORKSPACE // {label}...</span>
   </div>
 );
 
 export function App() {
   const [locale, setLocale] = useState<Locale>('en');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceTab>('orchestrator');
   const [speed, setSpeed] = useState<SpeedMode>('1x');
   const [runtimeMode, setRuntimeMode] = useState<RuntimeMode>('browser');
   const [clusterOnline, setClusterOnline] = useState<boolean>(false);
@@ -104,7 +109,7 @@ export function App() {
   });
   const [byokVerdictOverride, setByokVerdictOverride] = useState<string | null>(null);
 
-  // Boot directly into Scenario A paused cleanly at HITL Gate so visitors immediately see rich photonic telemetry
+  // Boot directly into Scenario A paused cleanly at HITL Gate so visitors immediately inspect live photonic telemetry
   const [run, setRun] = useState<ControlPlaneRun>(() =>
     runUntilPauseOrComplete(createInitialRun('outage_rollback'))
   );
@@ -115,8 +120,9 @@ export function App() {
   const [cmdOpen, setCmdOpen] = useState<boolean>(false);
   const [licenseOpen, setLicenseOpen] = useState<boolean>(false);
   const [presetTriggerCount, setPresetTriggerCount] = useState<number>(0);
+  const [showLegacyFinOps, setShowLegacyFinOps] = useState<boolean>(false);
 
-  // Enterprise states: Red-Team Overlay, Multi-Model FinOps Matrix, Audit Export confirmation
+  // Enterprise states: Red-Team Overlay, Branch FinOps Matrix, Audit Export confirmation
   const [redTeamResult, setRedTeamResult] = useState<RedTeamSimulationResult | null>(null);
   const [monthlyCalls, setMonthlyCalls] = useState<number>(2_000_000);
   const [cacheHitRatePct, setCacheHitRatePct] = useState<number>(45);
@@ -125,6 +131,21 @@ export function App() {
 
   const t = TRANSLATIONS[locale];
   const activeBranch = run.branches[run.active_branch_id];
+  const totalTokens = activeBranch.total_input_tokens + activeBranch.total_output_tokens;
+  const groundednessDisplay =
+    activeBranch.groundedness > 0 ? activeBranch.groundedness.toFixed(2) : '--';
+
+  // Ensure initial DOM theme class matches state
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+    }
+  }, [theme]);
 
   const reprobeCluster = useCallback(() => {
     probePythonCluster(DEFAULT_PYTHON_CLUSTER_URL).then((health) => {
@@ -361,13 +382,6 @@ export function App() {
     window.setTimeout(() => setAuditExportedRecently(false), 2000);
   }, [finopsSimulation, redTeamResult, run]);
 
-  const handleJumpToSection = useCallback((sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
   const selectedNodeMeta = useMemo(
     () => (selectedNodeId ? GRAPH_NODES.find((n) => n.id === selectedNodeId) ?? null : null),
     [selectedNodeId]
@@ -380,225 +394,355 @@ export function App() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--vg-bg)] text-[var(--vg-text)]">
+      {/* Decluttered Single-Row Studio Header with 4 Segmented Workspace Tabs */}
       <TopBar
         t={t}
         locale={locale}
         onToggleLocale={() => setLocale((l) => (l === 'en' ? 'vi' : 'en'))}
         theme={theme}
         onToggleTheme={handleToggleTheme}
-        speed={speed}
-        onChangeSpeed={setSpeed}
-        runtimeMode={runtimeMode}
-        clusterOnline={clusterOnline}
+        activeWorkspace={activeWorkspace}
+        onSelectWorkspace={setActiveWorkspace}
         onOpenCommandPalette={() => setCmdOpen(true)}
         onExportAuditBundle={handleExportAuditBundle}
         auditExportedRecently={auditExportedRecently}
-        onOpenLicenseModal={() => setLicenseOpen(true)}
-        branch={activeBranch}
-        activeBranchId={run.active_branch_id}
       />
 
-      {/* v4.0 Enterprise Quick-Jump Module Ribbon */}
-      <nav
-        aria-label="Control Plane Modules"
-        className="border-b border-[var(--vg-border)] bg-[var(--vg-surface)]/80 px-3.5 py-1.5"
-      >
-        <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {MODULE_LINKS.map((mod) => (
-              <button
-                key={mod.id}
-                type="button"
-                onClick={() => handleJumpToSection(mod.id)}
-                className="flex items-center gap-1 rounded border border-[var(--vg-border)] bg-[var(--vg-panel)] px-2 py-0.5 font-mono text-[9.5px] font-medium text-[var(--vg-text-muted)] transition-colors hover:border-sky-400/50 hover:text-sky-400"
-              >
-                <span className="font-bold text-sky-400">{mod.code}</span>
-                <span>{locale === 'vi' ? mod.labelVi : mod.labelEn}</span>
-              </button>
-            ))}
-          </div>
+      {/* Breathable Studio Workspace Container */}
+      <main className="mx-auto w-full max-w-[1520px] flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        {/* WORKSPACE 1: ORCHESTRATOR DAG */}
+        {activeWorkspace === 'orchestrator' && (
+          <div className="flex flex-col gap-6" data-testid="workspace-orchestrator">
+            {/* Airy Run Telemetry & Speed Control Strip */}
+            <section className="vg-panel flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3 sm:px-5">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-[var(--vg-accent-border)] bg-[var(--vg-accent-soft)] px-2.5 py-0.5 font-mono text-[10.5px] font-bold text-[var(--vg-accent)]">
+                    BRANCH: {run.active_branch_id.toUpperCase()}
+                  </span>
+                </div>
 
-          <button
-            type="button"
-            onClick={() => setLicenseOpen(true)}
-            className="hidden items-center gap-1 font-mono text-[9.5px] font-semibold text-emerald-400 transition-colors hover:underline lg:flex"
-          >
-            <Award className="h-3 w-3" />
-            <span>TVT STUDIO FLAGSHIP #3 · 19.900.000 VND COMMERCIAL LICENSE</span>
-            <ChevronRight className="h-3 w-3" />
-          </button>
-        </div>
-      </nav>
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <DollarSign className="h-3.5 w-3.5 text-[var(--vg-accent)]" />
+                  <span className="text-[var(--vg-text-dim)]">{t.finopsCost}</span>
+                  <span
+                    className="font-bold text-[var(--vg-text)]"
+                    data-testid="ticker-cost"
+                  >
+                    ${activeBranch.total_cost_usd.toFixed(4)}
+                  </span>
+                </div>
 
-      {/* Main Responsive Mission Control Grid */}
-      <main className="mx-auto grid w-full max-w-[1720px] flex-1 grid-cols-1 gap-3.5 p-3.5 lg:grid-cols-12">
-        {/* Left Rail: Scenarios, Transport, Runtime */}
-        <div className="lg:col-span-3 xl:col-span-3">
-          <ScenarioDock
-            t={t}
-            locale={locale}
-            run={run}
-            isPlaying={isPlaying}
-            onSelectScenario={handleSelectScenario}
-            onTogglePlay={handleTogglePlay}
-            onStep={handleStep}
-            onRunInstant={handleRunInstant}
-            onReset={handleReset}
-            runtimeMode={runtimeMode}
-            onChangeRuntimeMode={setRuntimeMode}
-            clusterOnline={clusterOnline}
-            onReprobeCluster={reprobeCluster}
-            byokConfig={byokConfig}
-            onChangeByokConfig={setByokConfig}
-          />
-        </div>
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <Cpu className="h-3.5 w-3.5 text-[var(--vg-accent)]" />
+                  <span className="text-[var(--vg-text-dim)]">{t.finopsTokens}</span>
+                  <span
+                    className="font-bold text-[var(--vg-text)]"
+                    data-testid="ticker-tokens"
+                  >
+                    {totalTokens.toLocaleString()}
+                  </span>
+                </div>
 
-        {/* Right Primary Cockpit */}
-        <div className="flex flex-col gap-3.5 lg:col-span-9 xl:col-span-9">
-          {/* 01: Interactive Photonic Cyclic Multi-Agent Execution Graph */}
-          <div id="execution-graph-deck">
-            <ExecutionGraph
-              t={t}
-              run={run}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={(id) => setSelectedNodeId((cur) => (cur === id ? null : id))}
-              redTeamOverlay={redTeamResult}
-              onClearRedTeamOverlay={() => setRedTeamResult(null)}
-            />
-          </div>
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <Activity className="h-3.5 w-3.5 text-[var(--vg-accent)]" />
+                  <span className="text-[var(--vg-text-dim)]">{t.finopsLatency}</span>
+                  <span className="font-bold text-[var(--vg-text)]">
+                    {activeBranch.total_latency_ms.toFixed(0)}ms
+                  </span>
+                </div>
 
-          {/* Clicked Node State, Token & Protocol Contract Inspector */}
-          {selectedNodeMeta && (
-            <NodeInspectorModal
-              t={t}
-              run={run}
-              node={selectedNodeMeta}
-              checkpoint={selectedNodeCheckpoint}
-              onSelectNode={(id) => setSelectedNodeId(id)}
-              onClose={() => setSelectedNodeId(null)}
-            />
-          )}
+                <div className="flex items-center gap-1.5 font-mono text-xs">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-[var(--vg-text-dim)]">{t.finopsGroundedness}</span>
+                  <span
+                    className="font-bold text-emerald-700 dark:text-emerald-400"
+                    data-testid="ticker-groundedness"
+                  >
+                    {groundednessDisplay}
+                  </span>
+                </div>
+              </div>
 
-          {/* Contextual HITL Approval Interrupt Gate */}
-          {run.status === 'paused_hitl' && run.hitl_context && (
-            <HitlBanner t={t} context={run.hitl_context} onDecide={handleHitlDecide} />
-          )}
+              {/* Speed Selector */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg border border-[var(--vg-border)] bg-[var(--vg-surface)] p-0.5">
+                  <Gauge className="mx-1.5 h-3.5 w-3.5 text-[var(--vg-text-dim)]" />
+                  {SPEED_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setSpeed(opt)}
+                      className={`rounded-md px-2 py-1 font-mono text-[10.5px] font-semibold transition-colors ${
+                        speed === opt
+                          ? 'bg-[var(--vg-panel)] text-[var(--vg-accent)] shadow-xs'
+                          : 'text-[var(--vg-text-muted)] hover:text-[var(--vg-text)]'
+                      }`}
+                    >
+                      {opt === 'instant' ? 'MAX' : opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
 
-          {/* Grounded Synthesizer Verdict & AG-UI Generative Widget */}
-          <VerdictOutputPanel
-            t={t}
-            branch={activeBranch}
-            scenarioId={run.scenario_id}
-            hasForks={Object.keys(run.branches).length > 1}
-            onQuickLoadForkPreset={() => setPresetTriggerCount((c) => c + 1)}
-            byokVerdictOverride={byokVerdictOverride}
-          />
-
-          {/* 02: v4.0 Interactive OWASP LLM01-LLM10 Prompt Firewall & Token Budget Circuit Breaker */}
-          <Suspense fallback={<PanelFallback label="PROMPT FIREWALL & CIRCUIT BREAKER" />}>
-            <PromptFirewallLab t={t} locale={locale} />
-          </Suspense>
-
-          {/* 03: v4.0 Interactive DAG Latency & Cost Waterfall Replay */}
-          <Suspense fallback={<PanelFallback label="DAG P95 & USD WATERFALL REPLAY" />}>
-            <DagWaterfallReplay t={t} run={run} />
-          </Suspense>
-
-          {/* 04: Custom Multi-Agent Workflow DAG Builder & Node Inspector */}
-          <Suspense fallback={<PanelFallback label="WORKFLOW DAG BUILDER" />}>
-            <WorkflowDagBuilder t={t} locale={locale} />
-          </Suspense>
-
-          {/* 05 & 06: Security OWASP Top-10 Suite + Multi-Model FinOps Pareto Router Matrix */}
-          <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
-            <div className="xl:col-span-6">
-              <Suspense fallback={<PanelFallback label="OWASP RED-TEAM SUITE" />}>
-                <RedTeamSandbox
+            {/* Primary Hero 12-Col Cockpit */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              {/* Left Rail: Enterprise Playbooks & Transport */}
+              <div className="lg:col-span-3">
+                <ScenarioDock
                   t={t}
                   locale={locale}
-                  activeResult={redTeamResult}
-                  onSimulateAttack={(res) => setRedTeamResult(res)}
-                  onClearOverlay={() => setRedTeamResult(null)}
+                  run={run}
+                  isPlaying={isPlaying}
+                  onSelectScenario={handleSelectScenario}
+                  onTogglePlay={handleTogglePlay}
+                  onStep={handleStep}
+                  onRunInstant={handleRunInstant}
+                  onReset={handleReset}
+                  runtimeMode={runtimeMode}
+                  onChangeRuntimeMode={setRuntimeMode}
+                  clusterOnline={clusterOnline}
+                  onReprobeCluster={reprobeCluster}
+                  byokConfig={byokConfig}
+                  onChangeByokConfig={setByokConfig}
                 />
-              </Suspense>
-            </div>
-            <div className="xl:col-span-6">
-              <Suspense fallback={<PanelFallback label="FINOPS PARETO ROUTER" />}>
-                <FinOpsSimulatorPanel
-                  t={t}
-                  monthlyCalls={monthlyCalls}
-                  onChangeMonthlyCalls={setMonthlyCalls}
-                  cacheHitRatePct={cacheHitRatePct}
-                  onChangeCacheHitRatePct={setCacheHitRatePct}
-                  routerPolicy={routerPolicy}
-                  onChangeRouterPolicy={setRouterPolicy}
-                  matrix={multiModelMatrix}
-                  branchSimulation={finopsSimulation}
-                  onLaunchScenarioDFork={handleLaunchScenarioDFork}
-                  onExportAuditBundle={handleExportAuditBundle}
-                  auditExportedRecently={auditExportedRecently}
-                />
-              </Suspense>
-            </div>
-          </div>
+              </div>
 
-          {/* 07 & 08: Time-Travel Checkpoint Forking & State Diff + 3-Protocol Wire & OTel Waterfall */}
-          <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
-            <div className="xl:col-span-6">
-              <Suspense fallback={<PanelFallback label="TIME-TRAVEL DIFF PANEL" />}>
-                <TimeTravelPanel
+              {/* Right Hero Canvas & Contextual Gates */}
+              <div className="flex flex-col gap-5 lg:col-span-9">
+                <div id="execution-graph-deck">
+                  <ExecutionGraph
+                    t={t}
+                    theme={theme}
+                    run={run}
+                    selectedNodeId={selectedNodeId}
+                    onSelectNode={(id) => setSelectedNodeId((cur) => (cur === id ? null : id))}
+                    redTeamOverlay={redTeamResult}
+                    onClearRedTeamOverlay={() => setRedTeamResult(null)}
+                  />
+                </div>
+
+                {selectedNodeMeta && (
+                  <NodeInspectorModal
+                    t={t}
+                    run={run}
+                    node={selectedNodeMeta}
+                    checkpoint={selectedNodeCheckpoint}
+                    onSelectNode={(id) => setSelectedNodeId(id)}
+                    onClose={() => setSelectedNodeId(null)}
+                  />
+                )}
+
+                {run.status === 'paused_hitl' && run.hitl_context && (
+                  <HitlBanner t={t} context={run.hitl_context} onDecide={handleHitlDecide} />
+                )}
+
+                <VerdictOutputPanel
                   t={t}
-                  run={run}
-                  selectedCheckpointId={selectedCheckpointId}
-                  onSelectCheckpoint={setSelectedCheckpointId}
-                  onSelectBranch={handleSelectBranch}
-                  onForkAndReplay={handleForkAndReplay}
-                  presetTriggerCount={presetTriggerCount}
+                  branch={activeBranch}
+                  scenarioId={run.scenario_id}
+                  hasForks={Object.keys(run.branches).length > 1}
+                  onQuickLoadForkPreset={() => {
+                    setPresetTriggerCount((c) => c + 1);
+                    setActiveWorkspace('audit');
+                  }}
+                  byokVerdictOverride={byokVerdictOverride}
                 />
-              </Suspense>
+              </div>
             </div>
-            <div id="wire-inspector-deck" className="xl:col-span-6">
-              <Suspense fallback={<PanelFallback label="3-PROTOCOL WIRE INSPECTOR" />}>
-                <WireInspector
-                  t={t}
-                  run={run}
-                  activeTab={wireTab}
-                  onChangeTab={setWireTab}
-                />
+
+            {/* Secondary Orchestrator Engineering Deck: Waterfall Replay + Custom DAG Builder */}
+            <div className="flex flex-col gap-6">
+              <Suspense fallback={<PanelFallback label="DAG P95 & USD WATERFALL REPLAY" />}>
+                <DagWaterfallReplay t={t} run={run} />
+              </Suspense>
+
+              <Suspense fallback={<PanelFallback label="CUSTOM 7-ROLE DAG BUILDER" />}>
+                <WorkflowDagBuilder t={t} locale={locale} />
               </Suspense>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* WORKSPACE 2: OWASP FIREWALL & BUDGET CIRCUIT BREAKER */}
+        {activeWorkspace === 'firewall' && (
+          <div className="flex flex-col gap-6" data-testid="workspace-firewall">
+            <Suspense fallback={<PanelFallback label="OWASP PROMPT FIREWALL & CIRCUIT BREAKER" />}>
+              <PromptFirewallLab t={t} locale={locale} />
+            </Suspense>
+
+            <Suspense fallback={<PanelFallback label="OWASP LLM TOP-10 RED-TEAM SUITE" />}>
+              <RedTeamSandbox
+                t={t}
+                locale={locale}
+                activeResult={redTeamResult}
+                onSimulateAttack={(res) => setRedTeamResult(res)}
+                onClearOverlay={() => setRedTeamResult(null)}
+              />
+            </Suspense>
+          </div>
+        )}
+
+        {/* WORKSPACE 3: NEW FLAGSHIP MULTI-MODEL FINOPS ROUTING & PARETO FRONTIER ARENA */}
+        {activeWorkspace === 'routing' && (
+          <div className="flex flex-col gap-6" data-testid="workspace-routing">
+            <Suspense fallback={<PanelFallback label="MULTI-MODEL PARETO ROUTING ARENA" />}>
+              <ModelRoutingArena t={t} locale={locale} theme={theme} />
+            </Suspense>
+
+            {/* Collapsible Branch A/B Time-Travel FinOps Comparator */}
+            <div className="vg-panel overflow-hidden rounded-xl">
+              <button
+                type="button"
+                onClick={() => setShowLegacyFinOps((v) => !v)}
+                className="flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[var(--vg-surface-hover)]"
+              >
+                <div>
+                  <p className="font-display text-sm font-bold text-[var(--vg-text)]">
+                    Time-Travel Branch A/B FinOps Matrix &amp; Legacy 4-Model Router
+                  </p>
+                  <p className="text-xs text-[var(--vg-text-muted)]">
+                    Compare live Scenario D Time-Travel Fork groundedness lift and tiered cascade economics.
+                  </p>
+                </div>
+                {showLegacyFinOps ? (
+                  <ChevronUp className="h-4 w-4 text-[var(--vg-text-muted)]" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-[var(--vg-text-muted)]" />
+                )}
+              </button>
+
+              {showLegacyFinOps && (
+                <div className="border-t border-[var(--vg-border)] p-4">
+                  <Suspense fallback={<PanelFallback label="BRANCH FINOPS SIMULATOR" />}>
+                    <FinOpsSimulatorPanel
+                      t={t}
+                      monthlyCalls={monthlyCalls}
+                      onChangeMonthlyCalls={setMonthlyCalls}
+                      cacheHitRatePct={cacheHitRatePct}
+                      onChangeCacheHitRatePct={setCacheHitRatePct}
+                      routerPolicy={routerPolicy}
+                      onChangeRouterPolicy={setRouterPolicy}
+                      matrix={multiModelMatrix}
+                      branchSimulation={finopsSimulation}
+                      onLaunchScenarioDFork={() => {
+                        handleLaunchScenarioDFork();
+                        setActiveWorkspace('audit');
+                      }}
+                      onExportAuditBundle={handleExportAuditBundle}
+                      auditExportedRecently={auditExportedRecently}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* WORKSPACE 4: AUDIT, TIME-TRAVEL FORK DIFF & OTLP PROTOCOL WIRE */}
+        {activeWorkspace === 'audit' && (
+          <div className="flex flex-col gap-6" data-testid="workspace-audit">
+            {/* Audit Action Header */}
+            <section className="vg-panel flex flex-wrap items-center justify-between gap-4 rounded-xl px-5 py-4">
+              <div>
+                <h2 className="font-display text-base font-bold tracking-tight text-[var(--vg-text)]">
+                  Audit Trail, Time-Travel Fork Diff &amp; 3-Protocol Wire Telemetry
+                </h2>
+                <p className="mt-0.5 text-xs text-[var(--vg-text-muted)]">
+                  Inspect immutable checkpoints, replay alternate models from CP-02, audit MCP/A2A/AG-UI frames, and export signed OTLP bundles.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleLaunchScenarioDFork}
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--vg-accent-border)] bg-[var(--vg-accent-soft)] px-3 py-2 text-xs font-semibold text-[var(--vg-accent)] transition-colors hover:opacity-90"
+                >
+                  <GitFork className="h-3.5 w-3.5" />
+                  <span>{t.finopsLaunchForkBtn}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportAuditBundle}
+                  className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/12 px-3 py-2 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300"
+                >
+                  {auditExportedRecently ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      <span>{t.exportAuditSaved}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Export Signed OTLP Bundle</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </section>
+
+            {/* Spacious 12-Col Split: Time-Travel Diff + Wire Inspector */}
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-6">
+                <Suspense fallback={<PanelFallback label="TIME-TRAVEL DIFF PANEL" />}>
+                  <TimeTravelPanel
+                    t={t}
+                    run={run}
+                    selectedCheckpointId={selectedCheckpointId}
+                    onSelectCheckpoint={setSelectedCheckpointId}
+                    onSelectBranch={handleSelectBranch}
+                    onForkAndReplay={handleForkAndReplay}
+                    presetTriggerCount={presetTriggerCount}
+                  />
+                </Suspense>
+              </div>
+              <div id="wire-inspector-deck" className="xl:col-span-6">
+                <Suspense fallback={<PanelFallback label="3-PROTOCOL WIRE INSPECTOR" />}>
+                  <WireInspector
+                    t={t}
+                    run={run}
+                    activeTab={wireTab}
+                    onChangeTab={setWireTab}
+                  />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Footer Strip */}
-      <footer className="border-t border-[var(--vg-border)] bg-[var(--vg-panel)] px-4 py-2 font-mono text-[10px] text-[var(--vg-text-dim)]">
-        <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2">
+      {/* Clean Minimal Studio Footer */}
+      <footer className="border-t border-[var(--vg-border)] bg-[var(--vg-panel)] px-4 py-3 font-mono text-[11px] text-[var(--vg-text-dim)] sm:px-6">
+        <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-2">
           <span>
-            VERDICT GRAPH v4.0 FULL-STACK MULTI-AGENT CONTROL PLANE // ENGINEERED BY TRUONG VAN TINH (GITHUB.COM/TVT987)
+            VERDICT GRAPH v5.0 // MULTI-AGENT CONTROL PLANE BY TRUONG VAN TINH (GITHUB.COM/TVT987)
           </span>
-          <div className="flex flex-wrap items-center gap-3">
-            <span>
-              STACK: PYTHON 3.12 FASTAPI · OWASP LLM01-LLM10 · MCP · A2A · AG-UI · OPENTELEMETRY OTLP
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="hidden md:inline">
+              PYTHON 3.12 FASTAPI · PARETO ROUTER · OWASP LLM01-10 · MCP · A2A · AG-UI · OTLP
             </span>
             <button
               type="button"
               onClick={() => setLicenseOpen(true)}
-              className="font-semibold text-emerald-400 hover:underline"
+              data-testid="footer-license-btn"
+              className="flex items-center gap-1 font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
             >
-              Enterprise License (19.9M VND)
+              <Award className="h-3.5 w-3.5" />
+              <span>Enterprise License</span>
             </button>
           </div>
         </div>
       </footer>
 
-      {/* CMD+K Quick Command Palette (lazy-mounted on demand) */}
+      {/* CMD+K Quick Command Palette */}
       {cmdOpen && (
         <Suspense fallback={null}>
           <CommandPalette
             open={cmdOpen}
             t={t}
             onClose={() => setCmdOpen(false)}
+            onSelectWorkspace={setActiveWorkspace}
             onSelectScenario={(id) => handleSelectScenario(id, true)}
             onSelectWireTab={setWireTab}
             onToggleTheme={() => handleToggleTheme()}
@@ -609,12 +753,11 @@ export function App() {
             onReset={handleReset}
             onExportAuditBundle={handleExportAuditBundle}
             onOpenLicenseModal={() => setLicenseOpen(true)}
-            onJumpToSection={handleJumpToSection}
           />
         </Suspense>
       )}
 
-      {/* Enterprise License Quote & Live MBBank VietQR Modal (lazy-mounted on demand) */}
+      {/* Enterprise License Quote & Live MBBank VietQR Modal */}
       {licenseOpen && (
         <Suspense fallback={null}>
           <EnterpriseLicenseModal

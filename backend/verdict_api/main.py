@@ -1,4 +1,4 @@
-"""Verdict Graph v4.0 FastAPI Multi-Agent Control Plane API."""
+"""Verdict Graph v5.0 FastAPI Multi-Agent Control Plane API."""
 
 from __future__ import annotations
 
@@ -22,14 +22,22 @@ from .dag_engine import (
     scan_prompt_owasp,
     validate_and_run_dag,
 )
+from .routing_engine import (
+    ARENA_MODEL_PROFILES,
+    ParetoOptimizeRequest,
+    ParetoOptimizeResponse,
+    RoutingValidationError,
+    optimize_pareto_routing,
+)
 
 
 app = FastAPI(
-    title="Verdict Graph v4.0 Multi-Agent Control Plane API",
+    title="Verdict Graph v5.0 Multi-Agent Control Plane API",
     version=__version__,
     description=(
         "Production Python 3.12 FastAPI control plane exposing deterministic DAG validation & cycle detection, "
-        "Token/USD Budget Circuit Breakers, OWASP LLM01-LLM10 Prompt Firewall scanning, and FinOps Pareto routing."
+        "Token/USD Budget Circuit Breakers, OWASP LLM01-LLM10 Prompt Firewall scanning, FinOps Pareto routing, "
+        "and Multi-Model Cascading Pareto Arena optimization."
     ),
 )
 
@@ -49,12 +57,14 @@ def health() -> dict[str, Any]:
         "service": "verdict-graph-control-plane-api",
         "version": __version__,
         "models_registered": len(MODEL_CATALOG),
+        "arena_models_registered": len(ARENA_MODEL_PROFILES),
         "owasp_rules_loaded": len(OWASP_FIREWALL_RULES),
         "capabilities": [
             "dag-topological-cycle-detection",
             "token-usd-budget-circuit-breaker",
             "owasp-llm-top10-prompt-firewall",
             "finops-pareto-model-router",
+            "multi-model-pareto-cascade-arena",
         ],
     }
 
@@ -85,3 +95,22 @@ def firewall_scan(req: FirewallScanRequest) -> FirewallScanResponse:
 def finops_route(req: FinOpsRouteRequest) -> FinOpsRouteResponse:
     """Select the Pareto-optimal LLM under latency, cost, and quality SLA constraints."""
     return route_finops_pareto(req)
+
+
+@app.post(
+    "/api/v1/routing/pareto-optimize",
+    response_model=ParetoOptimizeResponse,
+    tags=["Multi-Model Routing Arena"],
+)
+def routing_pareto_optimize(req: ParetoOptimizeRequest) -> ParetoOptimizeResponse:
+    """Compute the 6-model Pareto frontier, optimal cascading router split, prompt-cache savings, and monthly FinOps ROI."""
+    try:
+        return optimize_pareto_routing(req)
+    except RoutingValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": exc.code,
+                "message": exc.message,
+            },
+        ) from exc

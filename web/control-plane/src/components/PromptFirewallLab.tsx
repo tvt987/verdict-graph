@@ -125,7 +125,7 @@ export const PromptFirewallLab: React.FC<PromptFirewallLabProps> = ({ t, locale 
               {t.firewallLabTitle}
             </h2>
             <span className="rounded border border-sky-400/45 bg-sky-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-sky-400">
-              v4.0 LIVE GUARD
+              v5.0 LIVE GUARD
             </span>
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-[var(--vg-text-dim)]">

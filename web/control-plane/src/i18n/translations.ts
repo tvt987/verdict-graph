@@ -87,6 +87,19 @@ export interface Translations {
   budgetBreakerHeading: string;
   waterfallReplayTitle: string;
   waterfallReplaySubtitle: string;
+  // v5.0 Breathable Studio Workspace & Multi-Model Pareto Routing Arena
+  tabOrchestrator: string;
+  tabFirewall: string;
+  tabRoutingArena: string;
+  tabAuditOtlp: string;
+  themeDaylight: string;
+  themeObsidian: string;
+  arenaTitle: string;
+  arenaSubtitle: string;
+  arenaVolumeLabel: string;
+  arenaQualityFloorLabel: string;
+  arenaLatencyBudgetLabel: string;
+  arenaCacheHitLabel: string;
 }
 
 export const TRANSLATIONS: Record<Locale, Translations> = {
@@ -167,7 +180,7 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     owaspExportJsonBtn: 'JSON Report',
     owaspExportMdBtn: 'Markdown Report',
     licenseBtnLabel: 'License · 19.9M',
-    licenseModalTitle: 'VERDICT GRAPH v4.0 — ENTERPRISE LICENSE & VIETQR',
+    licenseModalTitle: 'VERDICT GRAPH v5.0 — ENTERPRISE LICENSE & VIETQR',
     licenseModalSubtitle: 'Commercial Source Code Rights · MBBank Direct VietQR Settlement · TVT Studio Flagship #3',
     firewallLabTitle: 'PROMPT FIREWALL (OWASP LLM01-LLM10) & LIVE TOKEN BUDGET CIRCUIT BREAKER',
     firewallLabSubtitle: 'Real-time multi-vector prompt inspection with exact pattern spans · HARD_STOP vs Frontier-to-Flash auto-downgrade',
@@ -175,6 +188,18 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     budgetBreakerHeading: 'TOKEN / USD BUDGET CIRCUIT BREAKER',
     waterfallReplayTitle: 'INTERACTIVE DAG LATENCY & COST WATERFALL REPLAY',
     waterfallReplaySubtitle: 'Step-by-step animated multi-branch replay tracking cumulative P95 latency & USD spend per agent node',
+    tabOrchestrator: 'Orchestrator DAG',
+    tabFirewall: 'OWASP Firewall',
+    tabRoutingArena: 'Model Routing Arena',
+    tabAuditOtlp: 'Audit & OTLP',
+    themeDaylight: 'Daylight',
+    themeObsidian: 'Obsidian',
+    arenaTitle: 'MULTI-MODEL FINOPS ROUTING & PARETO FRONTIER ARENA',
+    arenaSubtitle: '6 frontier & open-weight LLM profiles · Deterministic cascading router policy · Live Cost-vs-Quality Pareto frontier',
+    arenaVolumeLabel: 'Monthly Request Volume',
+    arenaQualityFloorLabel: 'Groundedness Quality Floor',
+    arenaLatencyBudgetLabel: 'P95 Latency Budget',
+    arenaCacheHitLabel: 'Prompt Caching Hit Rate',
   },
   vi: {
     brandSubtitle: 'TRUNG TÂM ĐIỀU KHIỂN ĐA TÁC TỬ // MCP × A2A × AG-UI × OTEL',
@@ -253,7 +278,7 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     owaspExportJsonBtn: 'Xuất JSON',
     owaspExportMdBtn: 'Xuất Markdown',
     licenseBtnLabel: 'Bản Quyền · 19.9M',
-    licenseModalTitle: 'VERDICT GRAPH v4.0 — BÁO GIÁ DOANH NGHIỆP & VIETQR',
+    licenseModalTitle: 'VERDICT GRAPH v5.0 — BÁO GIÁ DOANH NGHIỆP & VIETQR',
     licenseModalSubtitle: 'Bản Quyền Mã Nguồn Thương Mại · Thanh Toán VietQR MBBank · Flagship #3 TVT Studio',
     firewallLabTitle: 'TƯỜNG LỬA PROMPT (OWASP LLM01-LLM10) & BỘ NGẮT MẠCH NGÂN SÁCH TOKEN',
     firewallLabSubtitle: 'Quét prompt đa vector thời gian thực, tô sáng đoạn rủi ro · HARD_STOP hoặc tự hạ tầng Frontier sang Flash',
@@ -261,5 +286,17 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     budgetBreakerHeading: 'BỘ NGẮT MẠCH NGÂN SÁCH TOKEN / USD',
     waterfallReplayTitle: 'PHÁT LẠI THÁC NƯỚC ĐỘ TRỄ P95 & CHI PHÍ USD THEO NHÁNH DAG',
     waterfallReplaySubtitle: 'Mô phỏng từng bước độ trễ P95 tích lũy và chi phí USD qua từng node tác tử theo nhánh thực thi',
+    tabOrchestrator: 'Điều Phối DAG',
+    tabFirewall: 'Tường Lửa OWASP',
+    tabRoutingArena: 'Đấu Trường Pareto',
+    tabAuditOtlp: 'Kiểm Toán & OTLP',
+    themeDaylight: 'Sáng Studio',
+    themeObsidian: 'Đen Obsidian',
+    arenaTitle: 'ĐẤU TRƯỜNG ĐỊNH TUYẾN FINOPS ĐA MODEL & ĐƯỜNG BIÊN PARETO',
+    arenaSubtitle: '6 mô hình LLM đầu bảng & mã nguồn mở · Bộ định tuyến phân tầng tối ưu · Biểu đồ biên Pareto Chi phí - Chất lượng',
+    arenaVolumeLabel: 'Lưu Lượng Request / Tháng',
+    arenaQualityFloorLabel: 'Sàn Chất Lượng Xác Thực',
+    arenaLatencyBudgetLabel: 'Ngân Sách Độ Trễ P95',
+    arenaCacheHitLabel: 'Tỷ Lệ Trúng Prompt Cache',
   },
 };
