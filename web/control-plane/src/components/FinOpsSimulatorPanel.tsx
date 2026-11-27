@@ -1,78 +1,110 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  Activity,
   Check,
+  Database,
   Download,
   GitFork,
   Layers,
-  ShieldCheck,
+  Scale,
+  Sparkles,
   TrendingDown,
   Zap,
 } from 'lucide-react';
 import type { Translations } from '../i18n/translations';
 import {
   type FinOpsSimulationResult,
-  type RoutingPolicy,
+  type MultiModelFinOpsResult,
+  type MultiModelRoutingPolicy,
+  type ParetoChartPoint,
   formatRunScaleLabel,
   formatUsdCompact,
 } from '../engine/finopsSimulator';
 
 interface FinOpsSimulatorPanelProps {
   t: Translations;
-  routingPolicy: RoutingPolicy;
-  onChangeRoutingPolicy: (policy: RoutingPolicy) => void;
-  monthlyRuns: number;
-  onChangeMonthlyRuns: (runs: number) => void;
-  simulation: FinOpsSimulationResult;
+  monthlyCalls: number;
+  onChangeMonthlyCalls: (calls: number) => void;
+  cacheHitRatePct: number;
+  onChangeCacheHitRatePct: (pct: number) => void;
+  routerPolicy: MultiModelRoutingPolicy;
+  onChangeRouterPolicy: (policy: MultiModelRoutingPolicy) => void;
+  matrix: MultiModelFinOpsResult;
+  branchSimulation: FinOpsSimulationResult;
   onLaunchScenarioDFork: () => void;
   onExportAuditBundle: () => void;
   auditExportedRecently: boolean;
 }
 
-const SCALE_STOPS = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
+const VOLUME_STOPS = [100_000, 500_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000];
+const LOG_MIN = Math.log10(100_000);
+const LOG_MAX = Math.log10(20_000_000);
 
-// Logarithmic mapping [0..1000] <-> [10_000..5_000_000] for ultra-smooth slider feel
-const LOG_MIN = Math.log10(10_000);
-const LOG_MAX = Math.log10(5_000_000);
-
-function runsToSliderValue(runs: number): number {
-  const clamped = Math.max(10_000, Math.min(5_000_000, runs));
+function callsToSlider(calls: number): number {
+  const clamped = Math.max(100_000, Math.min(20_000_000, calls));
   return Math.round(((Math.log10(clamped) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * 1000);
 }
 
-function sliderValueToRuns(val: number): number {
+function sliderToCalls(val: number): number {
   const frac = Math.max(0, Math.min(1, val / 1000));
   const raw = Math.pow(10, LOG_MIN + frac * (LOG_MAX - LOG_MIN));
-  if (raw < 100_000) return Math.round(raw / 5_000) * 5_000;
-  if (raw < 1_000_000) return Math.round(raw / 25_000) * 25_000;
-  return Math.round(raw / 100_000) * 100_000;
+  if (raw < 1_000_000) return Math.round(raw / 50_000) * 50_000;
+  return Math.round(raw / 250_000) * 250_000;
 }
 
-function formatTokensCompact(tokens: number): string {
-  if (tokens >= 1_000_000_000) {
-    return `${(tokens / 1_000_000_000).toFixed(2)}B`;
-  }
-  return `${(tokens / 1_000_000).toFixed(1)}M`;
-}
+const PARETO_W = 460;
+const PARETO_H = 196;
+const PAD = { top: 18, right: 24, bottom: 30, left: 42 };
 
 export const FinOpsSimulatorPanel: React.FC<FinOpsSimulatorPanelProps> = ({
   t,
-  routingPolicy,
-  onChangeRoutingPolicy,
-  monthlyRuns,
-  onChangeMonthlyRuns,
-  simulation,
+  monthlyCalls,
+  onChangeMonthlyCalls,
+  cacheHitRatePct,
+  onChangeCacheHitRatePct,
+  routerPolicy,
+  onChangeRouterPolicy,
+  matrix,
+  branchSimulation,
   onLaunchScenarioDFork,
   onExportAuditBundle,
   auditExportedRecently,
 }) => {
-  const maxBarMonthly = Math.max(1, simulation.mainMonthlyUsd);
-  const forkBarPct = Math.max(
-    6,
-    Math.min(100, Math.round((simulation.forkEffectiveMonthlyUsd / maxBarMonthly) * 100))
-  );
+  const [focusedPointId, setFocusedPointId] = useState<string | null>(null);
 
-  const mainGroundPct = Math.round(simulation.mainGroundedness * 100);
-  const forkGroundPct = Math.round(simulation.forkGroundedness * 100);
+  const paretoGeometry = useMemo(() => {
+    const plotW = PARETO_W - PAD.left - PAD.right;
+    const plotH = PARETO_H - PAD.top - PAD.bottom;
+
+    const maxCost = Math.max(
+      1,
+      ...matrix.paretoPoints.map((p) => p.costPer1kCallsUsd)
+    ) * 1.12;
+    const minQuality = 86;
+    const maxQuality = 99;
+
+    const toX = (cost: number) => PAD.left + 16 + (cost / maxCost) * (plotW - 32);
+    const toY = (qual: number) =>
+      PAD.top + plotH - ((qual - minQuality) / (maxQuality - minQuality)) * plotH;
+
+    const mapped = matrix.paretoPoints.map((pt) => ({
+      ...pt,
+      cx: Number(toX(pt.costPer1kCallsUsd).toFixed(1)),
+      cy: Number(toY(pt.qualityIndex).toFixed(1)),
+    }));
+
+    const frontierSorted = mapped
+      .filter((p) => p.onFrontier)
+      .sort((a, b) => a.costPer1kCallsUsd - b.costPer1kCallsUsd);
+    const frontierPolyline = frontierSorted.map((p) => `${p.cx},${p.cy}`).join(' ');
+
+    return { mapped, frontierPolyline, maxCost, plotW, plotH, toX, toY };
+  }, [matrix.paretoPoints]);
+
+  const focusedPoint: ParetoChartPoint =
+    matrix.paretoPoints.find((p) => p.id === focusedPointId) ??
+    matrix.paretoPoints.find((p) => p.kind === 'active') ??
+    matrix.paretoPoints[0];
 
   return (
     <section
@@ -86,20 +118,14 @@ export const FinOpsSimulatorPanel: React.FC<FinOpsSimulatorPanelProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <TrendingDown className="h-4 w-4 shrink-0 text-emerald-500 dark:text-emerald-400" />
             <h2 className="font-mono text-[11px] font-semibold tracking-[0.12em] text-[var(--vg-text)]">
-              {t.finopsSimTitle}
+              {t.finopsRouterTitle}
             </h2>
-            <span
-              className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold ${
-                simulation.sourceMode === 'live_fork'
-                  ? 'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                  : 'border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-400'
-              }`}
-            >
-              {simulation.sourceMode === 'live_fork' ? 'LIVE FORK' : 'SCN-D BASELINE'}
+            <span className="rounded border border-emerald-500/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+              4 MODELS · PARETO
             </span>
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-[var(--vg-text-dim)]">
-            {t.finopsSimSubtitle}
+            {t.finopsRouterSubtitle}
           </p>
         </div>
 
@@ -125,233 +151,365 @@ export const FinOpsSimulatorPanel: React.FC<FinOpsSimulatorPanelProps> = ({
 
       {/* Body */}
       <div className="flex flex-1 flex-col gap-3 p-3.5">
-        {/* Routing Policy Switch */}
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          <button
-            type="button"
-            data-testid="finops-policy-frontier"
-            onClick={() => onChangeRoutingPolicy('frontier_only')}
-            className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition-all ${
-              routingPolicy === 'frontier_only'
-                ? 'border-amber-400/60 bg-amber-500/12 text-[var(--vg-text)]'
-                : 'border-[var(--vg-border)] bg-[var(--vg-surface)] text-[var(--vg-text-muted)] hover:border-amber-400/35'
-            }`}
-          >
-            <div>
-              <p className="font-mono text-[10px] font-bold tracking-wider">
-                {t.finopsFrontierLabel}
-              </p>
-              <p className="mt-0.5 font-mono text-[9px] text-[var(--vg-text-dim)]">
-                All stages pinned to flagship models
-              </p>
-            </div>
-            <Layers className="h-4 w-4 shrink-0 text-amber-400" />
-          </button>
-
-          <button
-            type="button"
-            data-testid="finops-policy-cascade"
-            onClick={() => onChangeRoutingPolicy('tiered_cascade')}
-            className={`flex items-center justify-between rounded-md border px-3 py-2 text-left transition-all ${
-              routingPolicy === 'tiered_cascade'
-                ? 'border-emerald-400/60 bg-emerald-500/12 text-[var(--vg-text)] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]'
-                : 'border-[var(--vg-border)] bg-[var(--vg-surface)] text-[var(--vg-text-muted)] hover:border-emerald-400/35'
-            }`}
-          >
-            <div>
-              <p className="font-mono text-[10px] font-bold tracking-wider text-emerald-400">
-                {t.finopsCascadeLabel}
-              </p>
-              <p className="mt-0.5 font-mono text-[9px] text-[var(--vg-text-dim)]">
-                Mini triage + classifier + pruned synthesis
-              </p>
-            </div>
-            <Zap className="h-4 w-4 shrink-0 text-emerald-400" />
-          </button>
+        {/* 3 Routing Policies: Quality First / Balanced Hybrid / Cost Optimized */}
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+          {(
+            [
+              {
+                id: 'quality_first',
+                label: t.finopsPolicyQuality,
+                sub: '54% Claude · 30% Gemini',
+                icon: <Sparkles className="h-3.5 w-3.5 text-amber-400" />,
+                activeCls: 'border-amber-400/60 bg-amber-500/12 text-[var(--vg-text)]',
+              },
+              {
+                id: 'balanced_hybrid',
+                label: t.finopsPolicyBalanced,
+                sub: '36% Gemini · 34% vLLM',
+                icon: <Scale className="h-3.5 w-3.5 text-sky-400" />,
+                activeCls: 'border-sky-400/60 bg-sky-500/12 text-[var(--vg-text)]',
+              },
+              {
+                id: 'cost_optimized',
+                label: t.finopsPolicyCost,
+                sub: '68% Local vLLM Qwen-72B',
+                icon: <Zap className="h-3.5 w-3.5 text-emerald-400" />,
+                activeCls: 'border-emerald-400/60 bg-emerald-500/12 text-[var(--vg-text)]',
+              },
+            ] as Array<{
+              id: MultiModelRoutingPolicy;
+              label: string;
+              sub: string;
+              icon: React.ReactNode;
+              activeCls: string;
+            }>
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              data-testid={`finops-policy-${item.id}`}
+              onClick={() => onChangeRouterPolicy(item.id)}
+              className={`flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition-all ${
+                routerPolicy === item.id
+                  ? item.activeCls
+                  : 'border-[var(--vg-border)] bg-[var(--vg-surface)] text-[var(--vg-text-muted)] hover:border-sky-400/40'
+              }`}
+            >
+              <div className="min-w-0">
+                <p className="truncate font-mono text-[10px] font-bold tracking-wide">
+                  {item.label}
+                </p>
+                <p className="mt-0.5 truncate font-mono text-[8.5px] text-[var(--vg-text-dim)]">
+                  {item.sub}
+                </p>
+              </div>
+              {item.icon}
+            </button>
+          ))}
         </div>
 
-        {/* Scale Slider (10K -> 5M runs/month) */}
-        <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5">
-          <div className="flex items-center justify-between font-mono text-[10px]">
-            <span className="text-[var(--vg-text-muted)]">{t.finopsScaleLabel}</span>
-            <span
-              data-testid="finops-scale-value"
-              className="rounded bg-sky-500/15 px-2 py-0.5 font-bold text-sky-400"
-            >
-              {formatRunScaleLabel(monthlyRuns)} RUNS / MO
-            </span>
-          </div>
-
-          <input
-            type="range"
-            data-testid="finops-scale-slider"
-            min={0}
-            max={1000}
-            step={5}
-            value={runsToSliderValue(monthlyRuns)}
-            onChange={(e) => onChangeMonthlyRuns(sliderValueToRuns(Number(e.target.value)))}
-            className="vg-slider mt-2.5 w-full"
-            aria-label="Monthly Agent Execution Volume"
-          />
-
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
-            {SCALE_STOPS.filter((s) => [10_000, 100_000, 500_000, 1_000_000, 5_000_000].includes(s)).map(
-              (stop) => (
+        {/* Dual Sliders: Monthly Volume (100K -> 20M) + Cache Hit Rate (0% -> 85%) */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5">
+            <div className="flex items-center justify-between font-mono text-[9.5px]">
+              <span className="text-[var(--vg-text-muted)]">{t.finopsVolumeLabel}</span>
+              <span
+                data-testid="finops-scale-value"
+                className="rounded bg-sky-500/15 px-1.5 py-0.5 font-bold text-sky-400"
+              >
+                {formatRunScaleLabel(monthlyCalls)} / MO
+              </span>
+            </div>
+            <input
+              type="range"
+              data-testid="finops-scale-slider"
+              min={0}
+              max={1000}
+              step={5}
+              value={callsToSlider(monthlyCalls)}
+              onChange={(e) => onChangeMonthlyCalls(sliderToCalls(Number(e.target.value)))}
+              className="vg-slider mt-2 w-full"
+              aria-label="Monthly Request Volume"
+            />
+            <div className="mt-2 flex flex-wrap gap-1">
+              {VOLUME_STOPS.map((stop) => (
                 <button
                   key={stop}
                   type="button"
-                  onClick={() => onChangeMonthlyRuns(stop)}
-                  className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-semibold transition-colors ${
-                    monthlyRuns === stop
+                  onClick={() => onChangeMonthlyCalls(stop)}
+                  className={`rounded border px-1.5 py-0.5 font-mono text-[8.5px] font-semibold transition-colors ${
+                    monthlyCalls === stop
                       ? 'border-sky-400/60 bg-sky-500/20 text-sky-300'
                       : 'border-[var(--vg-border)] bg-[var(--vg-panel)] text-[var(--vg-text-dim)] hover:text-[var(--vg-text)]'
                   }`}
                 >
                   {formatRunScaleLabel(stop)}
                 </button>
-              )
-            )}
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5">
+            <div className="flex items-center justify-between font-mono text-[9.5px]">
+              <span className="flex items-center gap-1 text-[var(--vg-text-muted)]">
+                <Database className="h-3 w-3 text-emerald-400" />
+                {t.finopsCacheHitLabel}
+              </span>
+              <span
+                data-testid="finops-cache-value"
+                className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-bold text-emerald-400"
+              >
+                {cacheHitRatePct}% HIT
+              </span>
+            </div>
+            <input
+              type="range"
+              data-testid="finops-cache-slider"
+              min={0}
+              max={85}
+              step={1}
+              value={cacheHitRatePct}
+              onChange={(e) => onChangeCacheHitRatePct(Number(e.target.value))}
+              className="vg-slider mt-2 w-full"
+              aria-label="Semantic and KV Cache Hit Rate"
+            />
+            <div className="mt-2 flex flex-wrap gap-1">
+              {[0, 25, 45, 65, 85].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => onChangeCacheHitRatePct(pct)}
+                  className={`rounded border px-1.5 py-0.5 font-mono text-[8.5px] font-semibold transition-colors ${
+                    cacheHitRatePct === pct
+                      ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-300'
+                      : 'border-[var(--vg-border)] bg-[var(--vg-panel)] text-[var(--vg-text-dim)] hover:text-[var(--vg-text)]'
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Hero FinOps & Groundedness KPI Grid */}
+        {/* 4 Live Hero FinOps KPIs */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2.5 font-mono">
-            <p className="text-[8.5px] text-emerald-300/80">MONTHLY SAVINGS</p>
+          <div className="rounded-md border border-sky-400/35 bg-sky-500/10 p-2 font-mono">
+            <p className="text-[8.5px] text-sky-300/85">MONTHLY SPEND</p>
             <p
-              data-testid="finops-monthly-savings"
+              data-testid="finops-monthly-spend"
+              className="mt-0.5 text-sm font-bold text-sky-400"
+            >
+              {formatUsdCompact(matrix.monthlyCloudSpendUsd)}
+            </p>
+            <p className="mt-0.5 text-[8.5px] text-[var(--vg-text-dim)]">
+              vs {formatUsdCompact(matrix.singleFrontierMonthlyUsd)} 1-model
+            </p>
+          </div>
+
+          <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 font-mono">
+            <p className="text-[8.5px] text-emerald-300/85">ANNUAL SAVINGS</p>
+            <p
+              data-testid="finops-annual-savings"
               className="mt-0.5 text-sm font-bold text-emerald-400"
             >
-              {formatUsdCompact(simulation.monthlySavingsUsd)}
+              {formatUsdCompact(matrix.annualSavingsUsd)}
             </p>
-            <p className="mt-0.5 text-[9px] text-[var(--vg-text-dim)]">
-              -{simulation.totalSavingsPct}% vs main
+            <p className="mt-0.5 text-[8.5px] text-emerald-400/90">
+              -{matrix.savingsPct}% vs Frontier
             </p>
           </div>
 
-          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
-            <p className="text-[8.5px] text-[var(--vg-text-dim)]">ANNUALIZED ROI</p>
-            <p className="mt-0.5 text-sm font-bold text-sky-400">
-              {formatUsdCompact(simulation.annualSavingsUsd)}
-            </p>
-            <p className="mt-0.5 text-[9px] text-[var(--vg-text-dim)]">12-mo projection</p>
-          </div>
-
-          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
+          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2 font-mono">
             <p className="flex items-center gap-1 text-[8.5px] text-[var(--vg-text-dim)]">
-              <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-400" /> GROUNDEDNESS
+              <Activity className="h-3 w-3 text-sky-400" /> BLENDED TTFT
             </p>
             <p
-              data-testid="finops-groundedness-lift"
-              className="mt-0.5 whitespace-nowrap text-[13px] font-bold text-emerald-500 dark:text-emerald-400"
+              data-testid="finops-blended-ttft"
+              className="mt-0.5 text-sm font-bold text-[var(--vg-text)]"
             >
-              {simulation.mainGroundedness.toFixed(2)} -&gt; {simulation.forkGroundedness.toFixed(2)}
+              {matrix.blendedTtftMs}ms
             </p>
-            <p className="mt-0.5 text-[9px] text-emerald-600 dark:text-emerald-400/90">
-              +{simulation.groundednessLift.toFixed(2)} lift
-            </p>
-          </div>
-
-          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
-            <p className="text-[8.5px] text-[var(--vg-text-dim)]">TOKENS PRUNED</p>
-            <p className="mt-0.5 whitespace-nowrap text-[13px] font-bold text-[var(--vg-text)]">
-              {formatTokensCompact(simulation.monthlyTokensSaved)}
-            </p>
-            <p className="mt-0.5 text-[9px] text-[var(--vg-text-dim)]">
-              -{simulation.tokensSavedPerRun.toLocaleString()} tok/run
+            <p className="mt-0.5 text-[8.5px] text-emerald-400">
+              -{matrix.latencyReductionMs}ms vs 410ms
             </p>
           </div>
-        </div>
 
-        {/* Visual A/B Cost & Groundedness Comparison Bars */}
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          {/* Monthly Cost A/B Bars */}
-          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
-            <p className="mb-2 text-[9.5px] font-semibold tracking-wider text-[var(--vg-text-muted)]">
-              MONTHLY COST A/B ({formatRunScaleLabel(monthlyRuns)} RUNS)
+          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2 font-mono">
+            <p className="flex items-center gap-1 text-[8.5px] text-[var(--vg-text-dim)]">
+              <Layers className="h-3 w-3 text-amber-400" /> QUALITY INDEX
             </p>
-
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[var(--vg-text-muted)]">
-                    MAIN ({simulation.mainBranchId.toUpperCase()})
-                  </span>
-                  <span className="font-bold text-rose-400">
-                    {formatUsdCompact(simulation.mainMonthlyUsd)}
-                  </span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--vg-panel)]">
-                  <div className="h-full w-full rounded-full bg-rose-500/80" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[var(--vg-text)]">
-                    FORK + {routingPolicy === 'tiered_cascade' ? 'CASCADE' : 'FRONTIER'}
-                  </span>
-                  <span className="font-bold text-emerald-400">
-                    {formatUsdCompact(simulation.forkEffectiveMonthlyUsd)}
-                  </span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--vg-panel)]">
-                  <div
-                    className="h-full rounded-full bg-emerald-400 transition-all duration-300"
-                    style={{ width: `${forkBarPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Groundedness Lift Bars */}
-          <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
-            <p className="mb-2 text-[9.5px] font-semibold tracking-wider text-[var(--vg-text-muted)]">
-              GROUNDEDNESS QUALITY A/B
+            <p
+              data-testid="finops-quality-index"
+              className="mt-0.5 text-sm font-bold text-amber-400"
+            >
+              {matrix.blendedQualityIndex.toFixed(1)} / 100
             </p>
-
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[var(--vg-text-muted)]">MAIN (top_k=24 unranked)</span>
-                  <span className="font-bold text-amber-400">
-                    {simulation.mainGroundedness.toFixed(2)}
-                  </span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--vg-panel)]">
-                  <div
-                    className="h-full rounded-full bg-amber-400/85"
-                    style={{ width: `${mainGroundPct}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[var(--vg-text)]">FORK (top_k=8 + rerank)</span>
-                  <span className="font-bold text-emerald-400">
-                    {simulation.forkGroundedness.toFixed(2)}
-                  </span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--vg-panel)]">
-                  <div
-                    className="h-full rounded-full bg-emerald-400 transition-all duration-300"
-                    style={{ width: `${forkGroundPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
+            <p className="mt-0.5 text-[8.5px] text-[var(--vg-text-dim)]">
+              ${matrix.costPer1kCallsUsd.toFixed(2)} / 1K calls
+            </p>
           </div>
         </div>
 
-        {/* Per-Stage Routing Breakdown ($/1K runs) */}
+        {/* Interactive SVG Cost-vs-Quality Pareto Chart */}
+        <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 font-mono text-[9.5px]">
+            <span className="font-semibold tracking-wider text-[var(--vg-text-muted)]">
+              COST-VS-QUALITY PARETO FRONTIER ($ / 1K CALLS vs QUALITY)
+            </span>
+            <span
+              data-testid="pareto-focus-pill"
+              className="rounded border border-sky-400/35 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-400"
+            >
+              {focusedPoint.label}: ${focusedPoint.costPer1kCallsUsd.toFixed(2)}/1K · Q=
+              {focusedPoint.qualityIndex} · {focusedPoint.ttftMs}ms
+            </span>
+          </div>
+
+          <svg
+            data-testid="finops-pareto-svg"
+            viewBox={`0 0 ${PARETO_W} ${PARETO_H}`}
+            className="h-auto w-full"
+          >
+            {/* Horizontal grid lines */}
+            {[88, 91, 94, 97].map((q) => {
+              const y = paretoGeometry.toY(q);
+              return (
+                <g key={q}>
+                  <line
+                    x1={PAD.left}
+                    y1={y}
+                    x2={PARETO_W - PAD.right}
+                    y2={y}
+                    stroke="var(--vg-border)"
+                    strokeDasharray="3 3"
+                  />
+                  <text
+                    x={PAD.left - 6}
+                    y={y + 3}
+                    textAnchor="end"
+                    fontSize="8.5"
+                    fontFamily="JetBrains Mono, monospace"
+                    fill="var(--vg-text-dim)"
+                  >
+                    {q}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Axes */}
+            <line
+              x1={PAD.left}
+              y1={PAD.top}
+              x2={PAD.left}
+              y2={PARETO_H - PAD.bottom}
+              stroke="var(--vg-text-dim)"
+              strokeWidth={0.8}
+            />
+            <line
+              x1={PAD.left}
+              y1={PARETO_H - PAD.bottom}
+              x2={PARETO_W - PAD.right}
+              y2={PARETO_H - PAD.bottom}
+              stroke="var(--vg-text-dim)"
+              strokeWidth={0.8}
+            />
+
+            {/* Axis captions */}
+            <text
+              x={PARETO_W / 2}
+              y={PARETO_H - 6}
+              textAnchor="middle"
+              fontSize="8.5"
+              fontFamily="JetBrains Mono, monospace"
+              fill="var(--vg-text-dim)"
+            >
+              COST PER 1,000 CALLS (USD) — LOWER IS BETTER
+            </text>
+            <text
+              x={12}
+              y={PARETO_H / 2}
+              textAnchor="middle"
+              fontSize="8.5"
+              fontFamily="JetBrains Mono, monospace"
+              fill="var(--vg-text-dim)"
+              transform={`rotate(-90 12 ${PARETO_H / 2})`}
+            >
+              QUALITY
+            </text>
+
+            {/* Pareto Frontier Polyline */}
+            {paretoGeometry.frontierPolyline && (
+              <polyline
+                points={paretoGeometry.frontierPolyline}
+                fill="none"
+                stroke="#10B981"
+                strokeWidth={1.8}
+                strokeDasharray="5 3"
+                opacity={0.8}
+              />
+            )}
+
+            {/* Scatter Points */}
+            {paretoGeometry.mapped.map((pt) => {
+              const isActive = pt.kind === 'active';
+              const isFocused = focusedPoint.id === pt.id;
+              return (
+                <g
+                  key={pt.id}
+                  data-testid={`pareto-point-${pt.id}`}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setFocusedPointId(pt.id)}
+                  onClick={() => setFocusedPointId(pt.id)}
+                >
+                  {(isActive || isFocused) && (
+                    <circle
+                      cx={pt.cx}
+                      cy={pt.cy}
+                      r={isActive ? 11 : 9}
+                      fill={pt.accentHex}
+                      opacity={0.2}
+                    />
+                  )}
+                  <circle
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={isActive ? 6 : 4.8}
+                    fill={pt.accentHex}
+                    stroke="#0B0E14"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={pt.cx}
+                    y={pt.cy - 9}
+                    textAnchor={
+                      pt.cx < PAD.left + 56
+                        ? 'start'
+                        : pt.cx > PARETO_W - PAD.right - 56
+                          ? 'end'
+                          : 'middle'
+                    }
+                    fontSize="8.2"
+                    fontFamily="JetBrains Mono, monospace"
+                    fontWeight={isActive ? 700 : 600}
+                    fill={isActive ? '#22D3EE' : 'var(--vg-text)'}
+                  >
+                    {pt.kind === 'active' ? 'ROUTED MIX' : pt.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* 4-Model Allocation Matrix */}
         <div className="rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] p-2.5 font-mono">
           <div className="mb-1.5 flex items-center justify-between text-[9.5px]">
             <span className="font-semibold text-[var(--vg-text-muted)]">
-              PER-STAGE MODEL ROUTING ($ / 1K RUNS)
+              LIVE TRAFFIC ROUTING ALLOCATION (4 MODELS)
             </span>
-            {simulation.sourceMode === 'benchmark_baseline' && (
+            {branchSimulation.sourceMode === 'benchmark_baseline' && (
               <button
                 type="button"
                 onClick={onLaunchScenarioDFork}
@@ -363,21 +521,29 @@ export const FinOpsSimulatorPanel: React.FC<FinOpsSimulatorPanelProps> = ({
             )}
           </div>
           <div className="space-y-1.5">
-            {simulation.stageBreakdown.map((row) => (
-              <div
-                key={row.stage}
-                className="grid grid-cols-12 items-center gap-2 text-[9.5px]"
-              >
-                <span className="col-span-5 truncate text-[var(--vg-text)]">{row.stage}</span>
-                <span className="col-span-4 truncate text-[var(--vg-text-dim)]">
-                  {row.routedModel}
-                </span>
-                <span className="col-span-3 text-right font-bold text-emerald-400">
-                  ${row.forkRoutedCostPer1kUsd.toFixed(2)}
-                  <span className="ml-1 text-[8.5px] text-[var(--vg-text-dim)]">
-                    (-{Math.max(0, row.reductionPct).toFixed(0)}%)
+            {matrix.allocations.map((row) => (
+              <div key={row.model.id} className="space-y-0.5">
+                <div className="grid grid-cols-12 items-center gap-1 text-[9.5px]">
+                  <span className="col-span-4 truncate font-semibold text-[var(--vg-text)]">
+                    {row.model.label}
                   </span>
-                </span>
+                  <span className="col-span-2 text-right text-sky-400">{row.sharePct}%</span>
+                  <span className="col-span-3 text-right text-[var(--vg-text-dim)]">
+                    {row.effectiveTtftMs}ms TTFT
+                  </span>
+                  <span className="col-span-3 text-right font-bold text-emerald-400">
+                    {formatUsdCompact(row.monthlySpendUsd)}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--vg-panel)]">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.max(3, row.sharePct)}%`,
+                      backgroundColor: row.model.accentHex,
+                    }}
+                  />
+                </div>
               </div>
             ))}
           </div>

@@ -246,3 +246,294 @@ export function formatUsdCompact(amount: number): string {
   }
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+// ============================================================================
+// v3.0 Multi-Model FinOps Cost/Latency Router Matrix & Pareto Frontier Engine
+// ============================================================================
+
+export type MultiModelId =
+  | 'gemini-2.5-pro'
+  | 'claude-3.7-sonnet'
+  | 'gpt-4o'
+  | 'vllm-qwen-72b';
+
+export type MultiModelRoutingPolicy =
+  | 'quality_first'
+  | 'balanced_hybrid'
+  | 'cost_optimized';
+
+export interface FinOpsModelSpec {
+  id: MultiModelId;
+  label: string;
+  shortLabel: string;
+  provider: string;
+  inputUsdPer1M: number;
+  outputUsdPer1M: number;
+  ttftMs: number;
+  qualityIndex: number; // 0..100 benchmark composite
+  contextWindow: string;
+  accentHex: string;
+}
+
+export const FINOPS_MODEL_CATALOG: FinOpsModelSpec[] = [
+  {
+    id: 'claude-3.7-sonnet',
+    label: 'Claude 3.7 Sonnet',
+    shortLabel: 'Claude 3.7',
+    provider: 'Anthropic',
+    inputUsdPer1M: 3.0,
+    outputUsdPer1M: 15.0,
+    ttftMs: 410,
+    qualityIndex: 97.4,
+    contextWindow: '200K',
+    accentHex: '#F59E0B',
+  },
+  {
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    shortLabel: 'Gemini 2.5 Pro',
+    provider: 'Google Vertex',
+    inputUsdPer1M: 1.25,
+    outputUsdPer1M: 10.0,
+    ttftMs: 325,
+    qualityIndex: 96.1,
+    contextWindow: '2M',
+    accentHex: '#38BDF8',
+  },
+  {
+    id: 'gpt-4o',
+    label: 'GPT-4o',
+    shortLabel: 'GPT-4o',
+    provider: 'OpenAI',
+    inputUsdPer1M: 2.5,
+    outputUsdPer1M: 10.0,
+    ttftMs: 310,
+    qualityIndex: 94.2,
+    contextWindow: '128K',
+    accentHex: '#A855F7',
+  },
+  {
+    id: 'vllm-qwen-72b',
+    label: 'Local vLLM Qwen-72B',
+    shortLabel: 'vLLM Qwen-72B',
+    provider: 'Self-Hosted H100',
+    inputUsdPer1M: 0.18,
+    outputUsdPer1M: 0.42,
+    ttftMs: 142,
+    qualityIndex: 88.9,
+    contextWindow: '128K',
+    accentHex: '#10B981',
+  },
+];
+
+export const ROUTING_POLICY_WEIGHTS: Record<
+  MultiModelRoutingPolicy,
+  Record<MultiModelId, number>
+> = {
+  quality_first: {
+    'claude-3.7-sonnet': 0.54,
+    'gemini-2.5-pro': 0.30,
+    'gpt-4o': 0.11,
+    'vllm-qwen-72b': 0.05,
+  },
+  balanced_hybrid: {
+    'claude-3.7-sonnet': 0.18,
+    'gemini-2.5-pro': 0.36,
+    'gpt-4o': 0.12,
+    'vllm-qwen-72b': 0.34,
+  },
+  cost_optimized: {
+    'claude-3.7-sonnet': 0.05,
+    'gemini-2.5-pro': 0.18,
+    'gpt-4o': 0.09,
+    'vllm-qwen-72b': 0.68,
+  },
+};
+
+export interface MultiModelFinOpsInput {
+  monthlyCalls: number; // 100_000 -> 20_000_000
+  cacheHitRatePct: number; // 0 -> 85
+  policy: MultiModelRoutingPolicy;
+  avgInputTokens?: number;
+  avgOutputTokens?: number;
+}
+
+export interface ModelAllocationRow {
+  model: FinOpsModelSpec;
+  sharePct: number;
+  monthlyCalls: number;
+  costPer1kCallsUsd: number;
+  monthlySpendUsd: number;
+  effectiveTtftMs: number;
+}
+
+export interface ParetoChartPoint {
+  id: string;
+  label: string;
+  kind: 'model' | 'policy' | 'active';
+  costPer1kCallsUsd: number;
+  qualityIndex: number;
+  ttftMs: number;
+  accentHex: string;
+  onFrontier: boolean;
+}
+
+export interface MultiModelFinOpsResult {
+  monthlyCalls: number;
+  cacheHitRatePct: number;
+  policy: MultiModelRoutingPolicy;
+  monthlyCloudSpendUsd: number;
+  singleFrontierMonthlyUsd: number;
+  monthlySavingsUsd: number;
+  annualSavingsUsd: number;
+  savingsPct: number;
+  blendedTtftMs: number;
+  singleFrontierTtftMs: number;
+  latencyReductionMs: number;
+  blendedQualityIndex: number;
+  costPer1kCallsUsd: number;
+  allocations: ModelAllocationRow[];
+  paretoPoints: ParetoChartPoint[];
+}
+
+const DEFAULT_AVG_INPUT_TOKENS = 1850;
+const DEFAULT_AVG_OUTPUT_TOKENS = 420;
+const CACHED_TOKEN_COST_FACTOR = 0.08; // 92% discount on semantic / KV cache hits
+const CACHED_TTFT_MS = 38;
+
+function modelCostPer1kCalls(
+  spec: FinOpsModelSpec,
+  avgIn: number,
+  avgOut: number,
+  cacheFrac: number
+): number {
+  const uncachedPerCall =
+    (avgIn / 1_000_000) * spec.inputUsdPer1M + (avgOut / 1_000_000) * spec.outputUsdPer1M;
+  const effectivePerCall =
+    uncachedPerCall * (1 - cacheFrac) + uncachedPerCall * CACHED_TOKEN_COST_FACTOR * cacheFrac;
+  return Number((effectivePerCall * 1000).toFixed(4));
+}
+
+function modelEffectiveTtft(spec: FinOpsModelSpec, cacheFrac: number): number {
+  return Number((spec.ttftMs * (1 - cacheFrac) + CACHED_TTFT_MS * cacheFrac).toFixed(1));
+}
+
+export function computeMultiModelFinOpsMatrix(
+  input: MultiModelFinOpsInput
+): MultiModelFinOpsResult {
+  const monthlyCalls = Math.max(100_000, Math.min(20_000_000, Math.round(input.monthlyCalls)));
+  const cacheHitRatePct = Math.max(0, Math.min(85, Math.round(input.cacheHitRatePct)));
+  const cacheFrac = cacheHitRatePct / 100;
+  const avgIn = input.avgInputTokens ?? DEFAULT_AVG_INPUT_TOKENS;
+  const avgOut = input.avgOutputTokens ?? DEFAULT_AVG_OUTPUT_TOKENS;
+
+  const weights = ROUTING_POLICY_WEIGHTS[input.policy];
+
+  // Single-frontier baseline: 100% pinned to Claude 3.7 Sonnet with 0% semantic caching
+  const frontierSpec = FINOPS_MODEL_CATALOG[0]; // claude-3.7-sonnet
+  const frontierPer1kUncached = modelCostPer1kCalls(frontierSpec, avgIn, avgOut, 0);
+  const singleFrontierMonthlyUsd = Number(
+    ((frontierPer1kUncached / 1000) * monthlyCalls).toFixed(2)
+  );
+
+  const allocations: ModelAllocationRow[] = FINOPS_MODEL_CATALOG.map((model) => {
+    const w = weights[model.id];
+    const calls = Math.round(monthlyCalls * w);
+    const per1k = modelCostPer1kCalls(model, avgIn, avgOut, cacheFrac);
+    const spend = Number(((per1k / 1000) * calls).toFixed(2));
+    const effTtft = modelEffectiveTtft(model, cacheFrac);
+    return {
+      model,
+      sharePct: Math.round(w * 100),
+      monthlyCalls: calls,
+      costPer1kCallsUsd: per1k,
+      monthlySpendUsd: spend,
+      effectiveTtftMs: effTtft,
+    };
+  });
+
+  const monthlyCloudSpendUsd = Number(
+    allocations.reduce((sum, row) => sum + row.monthlySpendUsd, 0).toFixed(2)
+  );
+  const monthlySavingsUsd = Number(
+    Math.max(0, singleFrontierMonthlyUsd - monthlyCloudSpendUsd).toFixed(2)
+  );
+  const annualSavingsUsd = Number((monthlySavingsUsd * 12).toFixed(2));
+  const savingsPct =
+    singleFrontierMonthlyUsd > 0
+      ? Number(((monthlySavingsUsd / singleFrontierMonthlyUsd) * 100).toFixed(1))
+      : 0;
+
+  const blendedTtftMs = Number(
+    allocations
+      .reduce((acc, row) => acc + (row.sharePct / 100) * row.effectiveTtftMs, 0)
+      .toFixed(1)
+  );
+  const latencyReductionMs = Number((frontierSpec.ttftMs - blendedTtftMs).toFixed(1));
+  const blendedQualityIndex = Number(
+    allocations
+      .reduce((acc, row) => acc + (row.sharePct / 100) * row.model.qualityIndex, 0)
+      .toFixed(1)
+  );
+  const costPer1kCallsUsd = Number(((monthlyCloudSpendUsd / monthlyCalls) * 1000).toFixed(4));
+
+  // Build Pareto Cost-vs-Quality Points (4 models + active routed policy)
+  const rawPoints: Array<Omit<ParetoChartPoint, 'onFrontier'>> = [
+    ...FINOPS_MODEL_CATALOG.map((m) => ({
+      id: m.id,
+      label: m.shortLabel,
+      kind: 'model' as const,
+      costPer1kCallsUsd: modelCostPer1kCalls(m, avgIn, avgOut, cacheFrac),
+      qualityIndex: m.qualityIndex,
+      ttftMs: modelEffectiveTtft(m, cacheFrac),
+      accentHex: m.accentHex,
+    })),
+    {
+      id: `active-${input.policy}`,
+      label:
+        input.policy === 'quality_first'
+          ? 'Active: Quality First'
+          : input.policy === 'balanced_hybrid'
+            ? 'Active: Balanced Hybrid'
+            : 'Active: Cost Optimized',
+      kind: 'active' as const,
+      costPer1kCallsUsd,
+      qualityIndex: blendedQualityIndex,
+      ttftMs: blendedTtftMs,
+      accentHex: '#22D3EE',
+    },
+  ];
+
+  // Identify Pareto-optimal points (no other point has strictly lower cost AND >= quality)
+  const paretoPoints: ParetoChartPoint[] = rawPoints.map((pt) => {
+    const dominated = rawPoints.some(
+      (other) =>
+        other.id !== pt.id &&
+        other.costPer1kCallsUsd <= pt.costPer1kCallsUsd &&
+        other.qualityIndex >= pt.qualityIndex &&
+        (other.costPer1kCallsUsd < pt.costPer1kCallsUsd || other.qualityIndex > pt.qualityIndex)
+    );
+    return {
+      ...pt,
+      onFrontier: !dominated,
+    };
+  });
+
+  return {
+    monthlyCalls,
+    cacheHitRatePct,
+    policy: input.policy,
+    monthlyCloudSpendUsd,
+    singleFrontierMonthlyUsd,
+    monthlySavingsUsd,
+    annualSavingsUsd,
+    savingsPct,
+    blendedTtftMs,
+    singleFrontierTtftMs: frontierSpec.ttftMs,
+    latencyReductionMs,
+    blendedQualityIndex,
+    costPer1kCallsUsd,
+    allocations,
+    paretoPoints,
+  };
+}

@@ -11,20 +11,105 @@ import type {
   OTelGenAISpan,
   RunStatus,
   ScenarioId,
+  StructuredDiffEntry,
 } from '../types/protocol';
 import { buildHitlResolutionSteps, buildScenarioSteps } from './scenarios';
+
+export interface ForkModelProfile {
+  id: string;
+  label: string;
+  system: string;
+  inputRatePer1M: number;
+  outputRatePer1M: number;
+  synthLatencyMs: number;
+  groundednessBonus: number;
+}
+
+export const ALTERNATE_FORK_MODELS: ForkModelProfile[] = [
+  {
+    id: 'claude-3.7-sonnet',
+    label: 'Claude 3.7 Sonnet',
+    system: 'anthropic',
+    inputRatePer1M: 3.0,
+    outputRatePer1M: 15.0,
+    synthLatencyMs: 218.0,
+    groundednessBonus: 0.0,
+  },
+  {
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    system: 'google',
+    inputRatePer1M: 1.25,
+    outputRatePer1M: 10.0,
+    synthLatencyMs: 168.0,
+    groundednessBonus: 0.0,
+  },
+  {
+    id: 'gpt-4o',
+    label: 'GPT-4o',
+    system: 'openai',
+    inputRatePer1M: 2.5,
+    outputRatePer1M: 10.0,
+    synthLatencyMs: 184.0,
+    groundednessBonus: -0.01,
+  },
+  {
+    id: 'vllm-qwen-72b',
+    label: 'Local vLLM Qwen-72B',
+    system: 'vllm_local',
+    inputRatePer1M: 0.18,
+    outputRatePer1M: 0.42,
+    synthLatencyMs: 92.0,
+    groundednessBonus: -0.03,
+  },
+  {
+    id: 'gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    system: 'google',
+    inputRatePer1M: 0.15,
+    outputRatePer1M: 0.6,
+    synthLatencyMs: 84.0,
+    groundednessBonus: -0.04,
+  },
+];
 
 const MODEL_RATES_PER_1M: Record<string, [number, number]> = {
   'gpt-4.1': [2.0, 8.0],
   'gpt-4.1-mini': [0.4, 1.6],
+  'gpt-4o': [2.5, 10.0],
   'claude-sonnet-4': [3.0, 15.0],
+  'claude-3.7-sonnet': [3.0, 15.0],
   'gemini-2.5-pro': [1.25, 10.0],
   'gemini-2.5-flash': [0.15, 0.6],
+  'vllm-qwen-72b': [0.18, 0.42],
   'policy-classifier-v3': [0.05, 0.05],
   'mcp-tool-runtime': [0.0, 0.0],
   'a2a-remote-peer': [1.5, 6.0],
   'human-operator-gate': [0.0, 0.0],
 };
+
+export function computeStructuredStateDiff(
+  beforeObj: Record<string, unknown>,
+  afterObj: Record<string, unknown>
+): StructuredDiffEntry[] {
+  const keys = Array.from(new Set([...Object.keys(beforeObj), ...Object.keys(afterObj)])).sort();
+  return keys.map((key) => {
+    const hasBefore = Object.prototype.hasOwnProperty.call(beforeObj, key);
+    const hasAfter = Object.prototype.hasOwnProperty.call(afterObj, key);
+    const beforeVal = beforeObj[key];
+    const afterVal = afterObj[key];
+    if (!hasBefore && hasAfter) {
+      return { path: `/${key}`, kind: 'added', before: undefined, after: afterVal };
+    }
+    if (hasBefore && !hasAfter) {
+      return { path: `/${key}`, kind: 'removed', before: beforeVal, after: undefined };
+    }
+    if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
+      return { path: `/${key}`, kind: 'changed', before: beforeVal, after: afterVal };
+    }
+    return { path: `/${key}`, kind: 'unchanged', before: beforeVal, after: afterVal };
+  });
+}
 
 export function computeCostUsd(model: string, inputTokens: number, outputTokens: number): number {
   const [inRate, outRate] = MODEL_RATES_PER_1M[model] ?? [1.0, 4.0];
@@ -412,6 +497,46 @@ export function forkAndReplayFromCheckpoint(
   const strictGrounding = Boolean(forkedState.strict_grounding ?? true);
   const isOptimal = rerank && topK <= 10 && strictGrounding;
 
+  const requestedModel =
+    typeof stateOverrides.model === 'string' && stateOverrides.model.trim().length > 0
+      ? stateOverrides.model.trim()
+      : null;
+  const modelProfile = requestedModel
+    ? ALTERNATE_FORK_MODELS.find((m) => m.id === requestedModel) ?? null
+    : null;
+  const synthModel = modelProfile ? modelProfile.id : 'claude-sonnet-4';
+  const synthSystem = modelProfile ? modelProfile.system : 'anthropic';
+  const promptOverride =
+    typeof stateOverrides.prompt_override === 'string' && stateOverrides.prompt_override.trim().length > 0
+      ? stateOverrides.prompt_override.trim()
+      : undefined;
+
+  const baseSynthGroundedness = isOptimal ? 0.99 : 0.78;
+  const effectiveGroundedness = Number(
+    Math.max(
+      0.62,
+      Math.min(
+        0.99,
+        baseSynthGroundedness +
+          (modelProfile ? modelProfile.groundednessBonus : 0) +
+          (promptOverride && promptOverride.toLowerCase().includes('strict') ? 0.01 : 0)
+      )
+    ).toFixed(2)
+  );
+  const synthLatencyMs = modelProfile
+    ? Number((isOptimal ? modelProfile.synthLatencyMs : modelProfile.synthLatencyMs * 1.38).toFixed(1))
+    : isOptimal
+      ? 198.0
+      : 290.0;
+  const synthInputTokens = isOptimal ? 2650 : 4200;
+  const synthOutputTokens = promptOverride && promptOverride.toLowerCase().includes('concise')
+    ? isOptimal
+      ? 290
+      : 460
+    : isOptimal
+      ? 410
+      : 640;
+
   const newBranch: BranchSummary = {
     branch_id: newBranchId,
     parent_branch_id: sourceBranch.branch_id,
@@ -449,7 +574,7 @@ export function forkAndReplayFromCheckpoint(
       latency_ms: isOptimal ? 72.0 : 142.0,
       input_tokens: 0,
       output_tokens: 0,
-      groundedness: isOptimal ? 0.99 : 0.78,
+      groundedness: effectiveGroundedness,
       prompt_or_args: {
         forked_from: checkpointId,
         tool: 'vector_corpus.hybrid_search',
@@ -457,6 +582,8 @@ export function forkAndReplayFromCheckpoint(
       },
       state_patch: {
         ...forkedState,
+        model: synthModel,
+        ...(promptOverride ? { prompt_override: promptOverride } : {}),
         retrieved_docs: isOptimal
           ? ['SPEC-2026-04 (rerank 0.97)', 'BENCH-2026-11 (rerank 0.95)']
           : ['SPEC-2026-04 (score 0.81)', 'LEGACY-2022-01 (score 0.62)'],
@@ -488,7 +615,7 @@ export function forkAndReplayFromCheckpoint(
                   json: {
                     top_k: topK,
                     rerank,
-                    context_tokens: isOptimal ? 2650 : 4200,
+                    context_tokens: synthInputTokens,
                     chunks: isOptimal
                       ? [
                           {
@@ -520,8 +647,14 @@ export function forkAndReplayFromCheckpoint(
         { op: 'replace', path: '/top_k', value: topK },
         { op: 'replace', path: '/rerank', value: rerank },
         { op: 'replace', path: '/strict_grounding', value: strictGrounding },
+        { op: 'replace', path: '/model', value: synthModel },
       ],
-      extra_span_attrs: { 'rag.top_k': topK, 'rag.rerank': rerank, 'verdict.fork.source': checkpointId },
+      extra_span_attrs: {
+        'rag.top_k': topK,
+        'rag.rerank': rerank,
+        'verdict.fork.source': checkpointId,
+        'verdict.fork.model': synthModel,
+      },
     },
     {
       node_id: 'policy_guardrail',
@@ -534,7 +667,7 @@ export function forkAndReplayFromCheckpoint(
       latency_ms: 31.0,
       input_tokens: isOptimal ? 980 : 1800,
       output_tokens: 65,
-      groundedness: isOptimal ? 0.99 : 0.78,
+      groundedness: effectiveGroundedness,
       guardrail_status: 'pass',
       prompt_or_args: {
         strict_grounding: strictGrounding,
@@ -549,29 +682,36 @@ export function forkAndReplayFromCheckpoint(
       node_id: 'grounded_synthesizer',
       from_node: 'policy_guardrail',
       edge_id: 'e-guard-synth',
-      label: isOptimal ? 'Forked Grounded Verdict (0.99)' : 'Forked Verdict (0.78)',
-      model: 'claude-sonnet-4',
-      system: 'anthropic',
+      label: isOptimal
+        ? `Forked Grounded Verdict (${effectiveGroundedness.toFixed(2)} · ${synthModel})`
+        : `Forked Verdict (${effectiveGroundedness.toFixed(2)} · ${synthModel})`,
+      model: synthModel,
+      system: synthSystem,
       operation: 'chat',
-      latency_ms: isOptimal ? 198.0 : 290.0,
-      input_tokens: isOptimal ? 2650 : 4200,
-      output_tokens: isOptimal ? 410 : 640,
-      groundedness: isOptimal ? 0.99 : 0.78,
+      latency_ms: synthLatencyMs,
+      input_tokens: synthInputTokens,
+      output_tokens: synthOutputTokens,
+      groundedness: effectiveGroundedness,
       guardrail_status: 'pass',
       prompt_or_args: {
         strict_grounding: strictGrounding,
         branch_id: newBranchId,
+        model: synthModel,
+        ...(promptOverride ? { prompt_override: promptOverride } : {}),
       },
       state_patch: {
-        groundedness: isOptimal ? 0.99 : 0.78,
+        groundedness: effectiveGroundedness,
+        synthesizer_model: synthModel,
+        ...(promptOverride ? { prompt_directive_applied: promptOverride } : {}),
       },
       ag_ui_patches: [
         { op: 'replace', path: '/active_branch_id', value: newBranchId },
-        { op: 'replace', path: '/groundedness', value: isOptimal ? 0.99 : 0.78 },
+        { op: 'replace', path: '/groundedness', value: effectiveGroundedness },
+        { op: 'replace', path: '/synthesizer_model', value: synthModel },
       ],
       verdict_text: isOptimal
-        ? 'Verified against SPEC-2026-04 & BENCH-2026-11: Voucher double-spending at 5,000+ RPS is prevented via Redis WATCH + atomic Lua CAS locking (120ms TTL, bounded exponential backoff) combined with Dapper zero-allocation SQL reads holding p99 latency at 42ms across 712 retail stores.'
-        : 'Partial recovery on forked branch: context window was narrowed, but enabling rerank=true, top_k<=10, and strict_grounding=true is required for 0.99 groundedness.',
+        ? `[${synthModel}] Verified against SPEC-2026-04 & BENCH-2026-11: Voucher double-spending at 5,000+ RPS is prevented via Redis WATCH + atomic Lua CAS locking (120ms TTL, bounded exponential backoff) combined with Dapper zero-allocation SQL reads holding p99 latency at 42ms across 712 retail stores.${promptOverride ? ` Directive applied: "${promptOverride.slice(0, 96)}".` : ''}`
+        : `[${synthModel}] Partial recovery on forked branch: context window was narrowed, but enabling rerank=true, top_k<=10, and strict_grounding=true is required for 0.99 groundedness.`,
       citations: isOptimal
         ? [
             {
@@ -600,15 +740,19 @@ export function forkAndReplayFromCheckpoint(
           ],
       widget: {
         kind: 'grounding_audit',
-        title: `Time-Travel Fork Recovery (${newBranchId.toUpperCase()} — Verified)`,
+        title: `Time-Travel Fork Recovery (${newBranchId.toUpperCase()} · ${synthModel})`,
         metrics: [
-          { label: 'GROUNDEDNESS', value: isOptimal ? '0.99 (+0.38)' : '0.78 (+0.17)', tone: 'emerald' },
+          {
+            label: 'GROUNDEDNESS',
+            value: `${effectiveGroundedness.toFixed(2)}`,
+            tone: effectiveGroundedness >= 0.95 ? 'emerald' : 'amber',
+          },
           { label: 'UNSUPPORTED CLAIMS', value: isOptimal ? '0 (CLEAN)' : '1', tone: isOptimal ? 'emerald' : 'amber' },
-          { label: 'TOKEN REDUCTION', value: isOptimal ? '-52.2%' : '-24.1%', tone: 'cyan' },
-          { label: 'COST SAVINGS', value: isOptimal ? '-48.8% USD' : '-21.3% USD', tone: 'emerald' },
+          { label: 'SYNTH MODEL', value: synthModel.toUpperCase(), tone: 'cyan' },
+          { label: 'LATENCY', value: `${synthLatencyMs.toFixed(0)}ms`, tone: 'emerald' },
         ],
         callout: isOptimal
-          ? 'Cross-encoder reranking + top_k=8 pruned 22 noisy chunks, eliminating hallucination while cutting run cost by nearly half.'
+          ? `Replayed via ${synthModel} with cross-encoder reranking + top_k=${topK}, eliminating hallucination while cutting run cost.`
           : 'Try setting top_k: 8, rerank: true, strict_grounding: true for optimal groundedness and FinOps savings.',
       },
     },
@@ -635,6 +779,41 @@ export function forkAndReplayFromCheckpoint(
     after,
   }));
 
+  const baseLastCp = baseBranch.checkpoints[baseBranch.checkpoints.length - 1];
+  const compLastCp = compBranch.checkpoints[compBranch.checkpoints.length - 1];
+  const baseSnapshot = baseLastCp ? baseLastCp.state_snapshot : sourceCp.state_snapshot;
+  const compSnapshot = compLastCp ? compLastCp.state_snapshot : forkedState;
+  const structuredStateDiff = computeStructuredStateDiff(baseSnapshot, compSnapshot);
+
+  const baseSpanModel =
+    completedRun.otel_spans
+      .filter((s) => s.branch_id === baseBranch.branch_id && s.node_id === 'grounded_synthesizer')
+      .map((s) => String(s.attributes['gen_ai.request.model']))
+      .pop() ?? 'claude-sonnet-4';
+
+  const baseStructuredOutput: Record<string, unknown> = {
+    branch_id: baseBranch.branch_id,
+    model: baseSpanModel,
+    groundedness: baseBranch.groundedness,
+    tokens: baseTokens,
+    latency_ms: baseBranch.total_latency_ms,
+    cost_usd: baseBranch.total_cost_usd,
+    citations_count: baseBranch.citations.length,
+    verdict: baseBranch.verdict_summary,
+  };
+
+  const compareStructuredOutput: Record<string, unknown> = {
+    branch_id: compBranch.branch_id,
+    model: synthModel,
+    ...(promptOverride ? { prompt_override: promptOverride } : {}),
+    groundedness: compBranch.groundedness,
+    tokens: compTokens,
+    latency_ms: compBranch.total_latency_ms,
+    cost_usd: compBranch.total_cost_usd,
+    citations_count: compBranch.citations.length,
+    verdict: compBranch.verdict_summary,
+  };
+
   const diff: BranchDiff = {
     base_branch_id: baseBranch.branch_id,
     compare_branch_id: compBranch.branch_id,
@@ -653,6 +832,14 @@ export function forkAndReplayFromCheckpoint(
       { kind: 'removed', text: baseBranch.verdict_summary },
       { kind: 'added', text: compBranch.verdict_summary },
     ],
+    base_model: baseSpanModel,
+    compare_model: synthModel,
+    prompt_override: promptOverride,
+    base_state_snapshot: baseSnapshot,
+    compare_state_snapshot: compSnapshot,
+    structured_state_diff: structuredStateDiff,
+    base_structured_output: baseStructuredOutput,
+    compare_structured_output: compareStructuredOutput,
   };
 
   completedRun.branch_diffs.push(diff);

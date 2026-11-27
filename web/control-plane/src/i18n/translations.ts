@@ -54,6 +54,32 @@ export interface Translations {
   finopsScaleLabel: string;
   finopsLaunchForkBtn: string;
   keyboardHint: string;
+  // v3.0 ENTERPRISE SUPER VIP PRO additions
+  dagBuilderTitle: string;
+  dagBuilderSubtitle: string;
+  dagRunTraceBtn: string;
+  dagStepBtn: string;
+  dagResetBtn: string;
+  dagAddNodeLabel: string;
+  dagInspectorHeading: string;
+  forkAltModelLabel: string;
+  forkAltPromptLabel: string;
+  forkAltReplayBtn: string;
+  finopsRouterTitle: string;
+  finopsRouterSubtitle: string;
+  finopsVolumeLabel: string;
+  finopsCacheHitLabel: string;
+  finopsPolicyQuality: string;
+  finopsPolicyBalanced: string;
+  finopsPolicyCost: string;
+  owaspSuiteTitle: string;
+  owaspSuiteSubtitle: string;
+  owaspRunAllBtn: string;
+  owaspExportJsonBtn: string;
+  owaspExportMdBtn: string;
+  licenseBtnLabel: string;
+  licenseModalTitle: string;
+  licenseModalSubtitle: string;
 }
 
 export const TRANSLATIONS: Record<Locale, Translations> = {
@@ -111,6 +137,31 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     finopsScaleLabel: 'MONTHLY AGENT VOLUME',
     finopsLaunchForkBtn: 'Run SCN-D Live Fork',
     keyboardHint: 'KEYS: [SPACE] PLAY/PAUSE · [N] STEP · [R] RESET',
+    dagBuilderTitle: 'CUSTOM MULTI-AGENT WORKFLOW DAG BUILDER & NODE INSPECTOR',
+    dagBuilderSubtitle: 'Add, remove & reorder 7 enterprise roles · Edit model, max tokens, temp & retries · Live photonic trace',
+    dagRunTraceBtn: 'Execute Live Trace',
+    dagStepBtn: 'Step Node',
+    dagResetBtn: 'Reset',
+    dagAddNodeLabel: 'ADD AGENT NODE:',
+    dagInspectorHeading: 'NODE CONFIGURATION INSPECTOR',
+    forkAltModelLabel: 'ALTERNATE MODEL',
+    forkAltPromptLabel: 'ALTERNATE PROMPT / SYSTEM DIRECTIVE',
+    forkAltReplayBtn: 'Fork & Replay with Alternate Model / Prompt',
+    finopsRouterTitle: 'MULTI-MODEL FINOPS COST / LATENCY ROUTER MATRIX',
+    finopsRouterSubtitle: 'Gemini 2.5 Pro · Claude 3.7 · GPT-4o · Local vLLM Qwen-72B · Interactive Cost-vs-Quality Pareto',
+    finopsVolumeLabel: 'MONTHLY REQUEST VOLUME',
+    finopsCacheHitLabel: 'SEMANTIC + KV CACHE HIT RATE',
+    finopsPolicyQuality: 'Quality First',
+    finopsPolicyBalanced: 'Balanced Hybrid',
+    finopsPolicyCost: 'Cost Optimized',
+    owaspSuiteTitle: 'OWASP LLM TOP-10 RED-TEAM ADVERSARIAL SUITE',
+    owaspSuiteSubtitle: '10 live adversarial probes · Confidence score · Guardrail latency (ms) · JSON / Markdown Audit Export',
+    owaspRunAllBtn: 'Run All 10 Probes',
+    owaspExportJsonBtn: 'JSON Report',
+    owaspExportMdBtn: 'Markdown Report',
+    licenseBtnLabel: 'License · 19.9M',
+    licenseModalTitle: 'VERDICT GRAPH v3.0 — ENTERPRISE LICENSE & VIETQR',
+    licenseModalSubtitle: 'Commercial Source Code Rights · MBBank Direct VietQR Settlement · TVT Studio Flagship #3',
   },
   vi: {
     brandSubtitle: 'TRUNG TÂM ĐIỀU KHIỂN ĐA TÁC TỬ // MCP × A2A × AG-UI × OTEL',
@@ -166,5 +217,30 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     finopsScaleLabel: 'SẢN LƯỢNG CHẠY HÀNG THÁNG',
     finopsLaunchForkBtn: 'Chạy Fork Thực Tế SCN-D',
     keyboardHint: 'PHÍM TẮT: [SPACE] CHẠY/DỪNG · [N] BƯỚC · [R] ĐẶT LẠI',
+    dagBuilderTitle: 'TRÌNH THIẾT KẾ DAG ĐA TÁC TỬ & SOI CẤU HÌNH NODE',
+    dagBuilderSubtitle: 'Thêm, xóa & sắp xếp 7 vai trò tác tử · Sửa model, max tokens, temp & retry · Chạy trace trực tiếp',
+    dagRunTraceBtn: 'Chạy Trace Trực Tiếp',
+    dagStepBtn: 'Bước Kế',
+    dagResetBtn: 'Đặt Lại',
+    dagAddNodeLabel: 'THÊM NODE TÁC TỬ:',
+    dagInspectorHeading: 'CẤU HÌNH CHI TIẾT NODE',
+    forkAltModelLabel: 'MODEL THAY THẾ',
+    forkAltPromptLabel: 'CHỈ THỊ PROMPT / HỆ THỐNG THAY THẾ',
+    forkAltReplayBtn: 'Tách Nhánh & Chạy Lại Với Model / Prompt Mới',
+    finopsRouterTitle: 'MA TRẬN ĐỊNH TUYẾN FINOPS ĐA MODEL CHI PHÍ / ĐỘ TRỄ',
+    finopsRouterSubtitle: 'Gemini 2.5 Pro · Claude 3.7 · GPT-4o · Local vLLM Qwen-72B · Biểu đồ Pareto Chi phí - Chất lượng',
+    finopsVolumeLabel: 'LƯU LƯỢNG REQUEST HÀNG THÁNG',
+    finopsCacheHitLabel: 'TỶ LỆ TRÚNG CACHE NGỮ NGHĨA + KV',
+    finopsPolicyQuality: 'Ưu Tiên Chất Lượng',
+    finopsPolicyBalanced: 'Cân Bằng Hybrid',
+    finopsPolicyCost: 'Tối Ưu Chi Phí',
+    owaspSuiteTitle: 'BỘ KIỂM THỬ RED-TEAM OWASP LLM TOP-10',
+    owaspSuiteSubtitle: '10 mũi tấn công đối kháng · Điểm tin cậy · Độ trễ Guardrail (ms) · Xuất Báo Cáo JSON / Markdown',
+    owaspRunAllBtn: 'Chạy Cả 10 Probe',
+    owaspExportJsonBtn: 'Xuất JSON',
+    owaspExportMdBtn: 'Xuất Markdown',
+    licenseBtnLabel: 'Bản Quyền · 19.9M',
+    licenseModalTitle: 'VERDICT GRAPH v3.0 — BÁO GIÁ DOANH NGHIỆP & VIETQR',
+    licenseModalSubtitle: 'Bản Quyền Mã Nguồn Thương Mại · Thanh Toán VietQR MBBank · Flagship #3 TVT Studio',
   },
 };

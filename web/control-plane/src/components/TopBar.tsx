@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Activity,
+  Award,
   Check,
   Command,
   Cpu,
@@ -33,6 +34,7 @@ interface TopBarProps {
   onOpenCommandPalette: () => void;
   onExportAuditBundle: () => void;
   auditExportedRecently: boolean;
+  onOpenLicenseModal: () => void;
   branch: BranchSummary;
   activeBranchId: string;
 }
@@ -52,6 +54,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenCommandPalette,
   onExportAuditBundle,
   auditExportedRecently,
+  onOpenLicenseModal,
   branch,
   activeBranchId,
 }) => {
@@ -66,11 +69,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--vg-border)] bg-[var(--vg-panel)]/95 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5">
+      <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2 px-3 py-2 xl:flex-nowrap">
         {/* Brand Identity */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-sky-400/35 bg-sky-500/10">
-            <svg width="20" height="20" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-sky-400/35 bg-sky-500/10">
+            <svg width="18" height="18" viewBox="0 0 64 64" fill="none" aria-hidden="true">
               <path
                 d="M14 18L32 48L50 18"
                 stroke="currentColor"
@@ -86,59 +89,59 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="flex items-center gap-1.5">
-              <span className="font-display text-sm font-bold tracking-[0.12em] text-[var(--vg-text)]">
+              <span className="font-display text-sm font-bold tracking-[0.1em] text-[var(--vg-text)]">
                 VERDICT GRAPH
               </span>
               <span
                 data-testid="version-badge"
-                className="rounded border border-emerald-400/45 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wider text-emerald-400"
+                className="rounded border border-emerald-400/50 bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9.5px] font-bold tracking-wider text-emerald-400"
               >
-                v2.0
+                v3.0 PRO
               </span>
-              <span className="rounded border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-sky-400">
+              <span className="rounded border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold tracking-wider text-sky-400">
                 {activeBranchId.toUpperCase()}
               </span>
             </div>
-            <p className="hidden font-mono text-[10px] tracking-[0.08em] text-[var(--vg-text-muted)] sm:block">
+            <p className="hidden font-mono text-[9.5px] tracking-[0.06em] text-[var(--vg-text-muted)] 2xl:block">
               {t.brandSubtitle}
             </p>
           </div>
         </div>
 
         {/* Live FinOps & Quality Ticker */}
-        <div className="hidden items-center gap-1.5 rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2.5 py-1 xl:flex">
-          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] pr-2.5">
-            <DollarSign className="h-3.5 w-3.5 text-sky-400" />
-            <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsCost}</span>
-            <span className="font-mono text-xs font-semibold text-[var(--vg-text)]" data-testid="ticker-cost">
+        <div className="hidden shrink-0 items-center gap-1 rounded-md border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 xl:flex">
+          <div className="flex items-center gap-1 border-r border-[var(--vg-border)] pr-2">
+            <DollarSign className="h-3 w-3 text-sky-400" />
+            <span className="font-mono text-[9.5px] text-[var(--vg-text-dim)]">{t.finopsCost}</span>
+            <span className="font-mono text-[11px] font-semibold text-[var(--vg-text)]" data-testid="ticker-cost">
               ${branch.total_cost_usd.toFixed(4)}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] px-2.5">
-            <Cpu className="h-3.5 w-3.5 text-sky-400" />
-            <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsTokens}</span>
-            <span className="font-mono text-xs font-semibold text-[var(--vg-text)]" data-testid="ticker-tokens">
+          <div className="flex items-center gap-1 border-r border-[var(--vg-border)] px-2">
+            <Cpu className="h-3 w-3 text-sky-400" />
+            <span className="font-mono text-[9.5px] text-[var(--vg-text-dim)]">{t.finopsTokens}</span>
+            <span className="font-mono text-[11px] font-semibold text-[var(--vg-text)]" data-testid="ticker-tokens">
               {totalTokens.toLocaleString()}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 border-r border-[var(--vg-border)] px-2.5">
-            <Activity className="h-3.5 w-3.5 text-sky-400" />
-            <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsLatency}</span>
-            <span className="font-mono text-xs font-semibold text-[var(--vg-text)]">
+          <div className="flex items-center gap-1 border-r border-[var(--vg-border)] px-2">
+            <Activity className="h-3 w-3 text-sky-400" />
+            <span className="font-mono text-[9.5px] text-[var(--vg-text-dim)]">{t.finopsLatency}</span>
+            <span className="font-mono text-[11px] font-semibold text-[var(--vg-text)]">
               {branch.total_latency_ms.toFixed(0)}ms
             </span>
           </div>
-          <div className="flex items-center gap-1.5 pl-2.5">
-            <ShieldCheck className={`h-3.5 w-3.5 ${groundednessColor}`} />
-            <span className="font-mono text-[10px] text-[var(--vg-text-dim)]">{t.finopsGroundedness}</span>
-            <span className={`font-mono text-xs font-bold ${groundednessColor}`} data-testid="ticker-groundedness">
+          <div className="flex items-center gap-1 pl-2">
+            <ShieldCheck className={`h-3 w-3 ${groundednessColor}`} />
+            <span className="font-mono text-[9.5px] text-[var(--vg-text-dim)]">{t.finopsGroundedness}</span>
+            <span className={`font-mono text-[11px] font-bold ${groundednessColor}`} data-testid="ticker-groundedness">
               {groundednessDisplay}
             </span>
           </div>
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {/* Runtime Badge */}
           <div
             className="hidden items-center gap-1.5 rounded border border-[var(--vg-border)] bg-[var(--vg-surface)] px-2 py-1 font-mono text-[10px] 2xl:flex"
@@ -180,6 +183,19 @@ export const TopBar: React.FC<TopBarProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Enterprise License & VietQR Modal Trigger */}
+          <button
+            type="button"
+            onClick={onOpenLicenseModal}
+            data-testid="topbar-license-btn"
+            className="flex items-center gap-1.5 rounded border border-emerald-400/55 bg-emerald-500/15 px-2 py-1 font-mono text-[10px] font-bold text-emerald-400 transition-colors hover:bg-emerald-500/25"
+            title="Enterprise License Quote (19.900.000 VND) & Live MBBank VietQR"
+          >
+            <Award className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">{t.licenseBtnLabel}</span>
+            <span className="md:hidden">19.9M</span>
+          </button>
 
           {/* 1-Click Export Audit Bundle */}
           <button

@@ -24,6 +24,7 @@ interface CommandPaletteProps {
   onRunInstant: () => void;
   onReset: () => void;
   onExportAuditBundle: () => void;
+  onOpenLicenseModal: () => void;
   onJumpToSection: (sectionId: string) => void;
 }
 
@@ -40,6 +41,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onRunInstant,
   onReset,
   onExportAuditBundle,
+  onOpenLicenseModal,
   onJumpToSection,
 }) => {
   const [query, setQuery] = useState('');
@@ -54,9 +56,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       { id: 'scn-b', group: 'SCENARIOS', label: 'Launch Scenario B — Indirect Prompt Injection Defense', run: () => onSelectScenario('prompt_injection') },
       { id: 'scn-c', group: 'SCENARIOS', label: 'Launch Scenario C — Cross-Org A2A Financial Audit', run: () => onSelectScenario('a2a_financial_audit') },
       { id: 'scn-d', group: 'SCENARIOS', label: 'Launch Scenario D — Hallucination Recovery via Time-Travel Fork', run: () => onSelectScenario('hallucination_fork') },
-      { id: 'v2-redteam', group: 'SECURITY v2.0', label: 'Jump to Red-Team Adversarial Guardrail Tester', run: () => onJumpToSection('red-team-deck') },
-      { id: 'v2-finops', group: 'FINOPS v2.0', label: 'Jump to FinOps Cost & Groundedness A/B Simulator', run: () => onJumpToSection('finops-deck') },
-      { id: 'v2-export', group: 'AUDIT v2.0', label: 'Export Signed JSON Trace + OpenTelemetry OTLP Audit Bundle', run: onExportAuditBundle },
+      { id: 'v3-dag', group: 'WORKFLOW v3.0', label: 'Jump to Custom Multi-Agent Workflow DAG Builder & Node Inspector', run: () => onJumpToSection('workflow-dag-builder') },
+      { id: 'v3-timetravel', group: 'DIFF v3.0', label: 'Jump to Time-Travel Forking & Side-by-Side State Diff Viewer', run: () => onJumpToSection('time-travel-deck') },
+      { id: 'v3-redteam', group: 'SECURITY v3.0', label: 'Jump to OWASP LLM Top-10 Red-Team Adversarial Suite', run: () => onJumpToSection('red-team-deck') },
+      { id: 'v3-finops', group: 'FINOPS v3.0', label: 'Jump to Multi-Model FinOps Cost/Latency Router Matrix (Pareto)', run: () => onJumpToSection('finops-deck') },
+      { id: 'v3-license', group: 'ENTERPRISE v3.0', label: 'Open Enterprise License Quote (19.9M VND) & MBBank VietQR Modal', run: onOpenLicenseModal },
+      { id: 'v3-export', group: 'AUDIT v3.0', label: 'Export Signed JSON Trace + OpenTelemetry OTLP Audit Bundle', run: onExportAuditBundle },
       { id: 'tab-mcp', group: 'WIRE INSPECTOR', label: 'Open MCP Wire Tab (JSON-RPC 2.0)', run: () => onSelectWireTab('mcp') },
       { id: 'tab-a2a', group: 'WIRE INSPECTOR', label: 'Open A2A Wire Tab (AgentCard & Signed Tasks)', run: () => onSelectWireTab('a2a') },
       { id: 'tab-agui', group: 'WIRE INSPECTOR', label: 'Open AG-UI Stream Tab (SSE & RFC 6902 Patch)', run: () => onSelectWireTab('agui') },
@@ -71,6 +76,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     [
       onExportAuditBundle,
       onJumpToSection,
+      onOpenLicenseModal,
       onReset,
       onRunInstant,
       onSelectScenario,
@@ -157,7 +163,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div className="flex items-center justify-between border-t border-[var(--vg-border)] bg-[var(--vg-surface)] px-3.5 py-1.5 font-mono text-[10px] text-[var(--vg-text-dim)]">
           <span className="flex items-center gap-1">
-            <Command className="h-3 w-3" /> VERDICT GRAPH v2.0 QUICK DISPATCH
+            <Command className="h-3 w-3" /> VERDICT GRAPH v3.0 ENTERPRISE QUICK DISPATCH
           </span>
           <span>ESC TO CLOSE</span>
         </div>

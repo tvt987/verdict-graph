@@ -197,6 +197,13 @@ export interface BranchSummary {
   checkpoints: Checkpoint[];
 }
 
+export interface StructuredDiffEntry {
+  path: string;
+  kind: 'added' | 'removed' | 'changed' | 'unchanged';
+  before: unknown;
+  after: unknown;
+}
+
 export interface BranchDiff {
   base_branch_id: string;
   compare_branch_id: string;
@@ -212,6 +219,15 @@ export interface BranchDiff {
   compare_guardrail: string;
   state_changes: Array<{ key: string; before: unknown; after: unknown }>;
   output_diff: Array<{ kind: 'removed' | 'added'; text: string }>;
+  // v3.0 Alternate Model / Prompt & Side-by-Side Structured State Diff
+  base_model?: string;
+  compare_model?: string;
+  prompt_override?: string;
+  base_state_snapshot?: Record<string, unknown>;
+  compare_state_snapshot?: Record<string, unknown>;
+  structured_state_diff?: StructuredDiffEntry[];
+  base_structured_output?: Record<string, unknown>;
+  compare_structured_output?: Record<string, unknown>;
 }
 
 export interface HitlContext {

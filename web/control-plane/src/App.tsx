@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Award, ChevronRight } from 'lucide-react';
 import type {
   ControlPlaneRun,
   HitlAction,
@@ -28,8 +29,9 @@ import {
 } from './engine/remoteBridge';
 import type { RedTeamSimulationResult } from './engine/redTeamClassifier';
 import {
-  type RoutingPolicy,
+  type MultiModelRoutingPolicy,
   computeFinOpsSimulation,
+  computeMultiModelFinOpsMatrix,
   extractBranchFinOpsMetrics,
 } from './engine/finopsSimulator';
 import {
@@ -41,12 +43,14 @@ import { ScenarioDock } from './components/ScenarioDock';
 import { ExecutionGraph } from './components/ExecutionGraph';
 import { HitlBanner } from './components/HitlBanner';
 import { VerdictOutputPanel } from './components/VerdictOutputPanel';
+import { WorkflowDagBuilder } from './components/WorkflowDagBuilder';
 import { TimeTravelPanel } from './components/TimeTravelPanel';
 import { WireInspector } from './components/WireInspector';
 import { NodeInspectorModal } from './components/NodeInspectorModal';
 import { CommandPalette } from './components/CommandPalette';
 import { RedTeamSandbox } from './components/RedTeamSandbox';
 import { FinOpsSimulatorPanel } from './components/FinOpsSimulatorPanel';
+import { EnterpriseLicenseModal } from './components/EnterpriseLicenseModal';
 
 const SPEED_DELAY_MS: Record<SpeedMode, number> = {
   '0.5x': 1250,
@@ -66,6 +70,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
+const MODULE_LINKS: Array<{ id: string; code: string; labelEn: string; labelVi: string }> = [
+  { id: 'execution-graph-deck', code: '01', labelEn: 'Execution Graph', labelVi: 'Đồ Thị Thực Thi' },
+  { id: 'workflow-dag-builder', code: '02', labelEn: 'DAG Builder', labelVi: 'Thiết Kế DAG' },
+  { id: 'red-team-deck', code: '03', labelEn: 'OWASP Top-10', labelVi: 'Red-Team OWASP' },
+  { id: 'finops-deck', code: '04', labelEn: 'FinOps Pareto', labelVi: 'FinOps Pareto' },
+  { id: 'time-travel-deck', code: '05', labelEn: 'Time-Travel Diff', labelVi: 'So Sánh Fork' },
+  { id: 'wire-inspector-deck', code: '06', labelEn: 'Protocol Wire', labelVi: 'Gói Tin OTel' },
+];
+
 export function App() {
   const [locale, setLocale] = useState<Locale>('en');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -79,7 +92,7 @@ export function App() {
   });
   const [byokVerdictOverride, setByokVerdictOverride] = useState<string | null>(null);
 
-  // Boot directly into Scenario A paused cleanly at HITL Gate so visitors immediately see rich photonic telemetry!
+  // Boot directly into Scenario A paused cleanly at HITL Gate so visitors immediately see rich photonic telemetry
   const [run, setRun] = useState<ControlPlaneRun>(() =>
     runUntilPauseOrComplete(createInitialRun('outage_rollback'))
   );
@@ -88,19 +101,19 @@ export function App() {
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
   const [wireTab, setWireTab] = useState<WireTab>('mcp');
   const [cmdOpen, setCmdOpen] = useState<boolean>(false);
+  const [licenseOpen, setLicenseOpen] = useState<boolean>(false);
   const [presetTriggerCount, setPresetTriggerCount] = useState<number>(0);
 
-  // v2.0 VIP PRO states: Red-Team Overlay, FinOps A/B Simulator, Audit Export confirmation
+  // v3.0 Enterprise states: Red-Team Overlay, Multi-Model FinOps Matrix, Audit Export confirmation
   const [redTeamResult, setRedTeamResult] = useState<RedTeamSimulationResult | null>(null);
-  const [routingPolicy, setRoutingPolicy] = useState<RoutingPolicy>('tiered_cascade');
-  const [monthlyRuns, setMonthlyRuns] = useState<number>(500_000);
+  const [monthlyCalls, setMonthlyCalls] = useState<number>(2_000_000);
+  const [cacheHitRatePct, setCacheHitRatePct] = useState<number>(45);
+  const [routerPolicy, setRouterPolicy] = useState<MultiModelRoutingPolicy>('balanced_hybrid');
   const [auditExportedRecently, setAuditExportedRecently] = useState<boolean>(false);
 
   const t = TRANSLATIONS[locale];
   const activeBranch = run.branches[run.active_branch_id];
 
-  // Probe local Python cluster on demand (via PROBE button or selecting Python Cluster mode)
-  // Avoids unsolicited localhost:8090 connection-refused console noise in pure browser mode.
   const reprobeCluster = useCallback(() => {
     probePythonCluster(DEFAULT_PYTHON_CLUSTER_URL).then((health) => {
       setClusterOnline(health.online);
@@ -147,9 +160,17 @@ export function App() {
       }
       if (e.key === 'Escape') {
         setCmdOpen(false);
+        setLicenseOpen(false);
         return;
       }
-      if (cmdOpen || e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) {
+      if (
+        cmdOpen ||
+        licenseOpen ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        isEditableTarget(e.target)
+      ) {
         return;
       }
       if (e.code === 'Space') {
@@ -165,7 +186,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cmdOpen, handleReset, handleStep, handleTogglePlay]);
+  }, [cmdOpen, licenseOpen, handleReset, handleStep, handleTogglePlay]);
 
   // Auto-play timer loop
   useEffect(() => {
@@ -189,7 +210,7 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [isPlaying, run.pending_steps.length, run.status, speed]);
 
-  // Optional BYOK synthesis hook when a run completes and user supplied an ephemeral key
+  // Optional BYOK synthesis hook
   useEffect(() => {
     if (runtimeMode !== 'byok' || !byokConfig.apiKey.trim()) {
       setByokVerdictOverride(null);
@@ -238,7 +259,6 @@ export function App() {
       setRedTeamResult(null);
       const fresh = createInitialRun(scenarioId);
 
-      // Select most illuminating protocol tab per scenario
       if (scenarioId === 'a2a_financial_audit') setWireTab('a2a');
       else if (scenarioId === 'prompt_injection') setWireTab('agui');
       else if (scenarioId === 'hallucination_fork') setWireTab('otel');
@@ -284,6 +304,8 @@ export function App() {
       top_k: 8,
       rerank: true,
       strict_grounding: true,
+      model: 'gemini-2.5-pro',
+      prompt_override: 'Strict grounding mode: cite verified SPEC-2026 & BENCH-2026 chunks.',
     });
     setWireTab('otel');
     setRun(forkedRun);
@@ -299,13 +321,23 @@ export function App() {
   const finopsSimulation = useMemo(() => {
     const extracted = extractBranchFinOpsMetrics(run);
     return computeFinOpsSimulation({
-      routingPolicy,
-      monthlyRuns,
+      routingPolicy: routerPolicy === 'quality_first' ? 'frontier_only' : 'tiered_cascade',
+      monthlyRuns: Math.min(5_000_000, monthlyCalls),
       mainBranch: extracted.mainBranch,
       forkBranch: extracted.forkBranch,
       sourceMode: extracted.sourceMode,
     });
-  }, [monthlyRuns, routingPolicy, run]);
+  }, [monthlyCalls, routerPolicy, run]);
+
+  const multiModelMatrix = useMemo(
+    () =>
+      computeMultiModelFinOpsMatrix({
+        monthlyCalls,
+        cacheHitRatePct,
+        policy: routerPolicy,
+      }),
+    [cacheHitRatePct, monthlyCalls, routerPolicy]
+  );
 
   const handleExportAuditBundle = useCallback(() => {
     const bundle = buildSignedAuditBundle(run, {
@@ -349,9 +381,42 @@ export function App() {
         onOpenCommandPalette={() => setCmdOpen(true)}
         onExportAuditBundle={handleExportAuditBundle}
         auditExportedRecently={auditExportedRecently}
+        onOpenLicenseModal={() => setLicenseOpen(true)}
         branch={activeBranch}
         activeBranchId={run.active_branch_id}
       />
+
+      {/* v3.0 Enterprise Quick-Jump Module Ribbon */}
+      <nav
+        aria-label="Control Plane Modules"
+        className="border-b border-[var(--vg-border)] bg-[var(--vg-surface)]/80 px-3.5 py-1.5"
+      >
+        <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {MODULE_LINKS.map((mod) => (
+              <button
+                key={mod.id}
+                type="button"
+                onClick={() => handleJumpToSection(mod.id)}
+                className="flex items-center gap-1 rounded border border-[var(--vg-border)] bg-[var(--vg-panel)] px-2 py-0.5 font-mono text-[9.5px] font-medium text-[var(--vg-text-muted)] transition-colors hover:border-sky-400/50 hover:text-sky-400"
+              >
+                <span className="font-bold text-sky-400">{mod.code}</span>
+                <span>{locale === 'vi' ? mod.labelVi : mod.labelEn}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setLicenseOpen(true)}
+            className="hidden items-center gap-1 font-mono text-[9.5px] font-semibold text-emerald-400 transition-colors hover:underline lg:flex"
+          >
+            <Award className="h-3 w-3" />
+            <span>TVT STUDIO FLAGSHIP #3 · 19.900.000 VND COMMERCIAL LICENSE</span>
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+      </nav>
 
       {/* Main Responsive Mission Control Grid */}
       <main className="mx-auto grid w-full max-w-[1720px] flex-1 grid-cols-1 gap-3.5 p-3.5 lg:grid-cols-12">
@@ -378,15 +443,17 @@ export function App() {
 
         {/* Right Primary Cockpit */}
         <div className="flex flex-col gap-3.5 lg:col-span-9 xl:col-span-9">
-          {/* Interactive Photonic Cyclic Multi-Agent Execution Graph */}
-          <ExecutionGraph
-            t={t}
-            run={run}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={(id) => setSelectedNodeId((cur) => (cur === id ? null : id))}
-            redTeamOverlay={redTeamResult}
-            onClearRedTeamOverlay={() => setRedTeamResult(null)}
-          />
+          {/* 01: Interactive Photonic Cyclic Multi-Agent Execution Graph */}
+          <div id="execution-graph-deck">
+            <ExecutionGraph
+              t={t}
+              run={run}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={(id) => setSelectedNodeId((cur) => (cur === id ? null : id))}
+              redTeamOverlay={redTeamResult}
+              onClearRedTeamOverlay={() => setRedTeamResult(null)}
+            />
+          </div>
 
           {/* Clicked Node State, Token & Protocol Contract Inspector */}
           {selectedNodeMeta && (
@@ -415,7 +482,10 @@ export function App() {
             byokVerdictOverride={byokVerdictOverride}
           />
 
-          {/* v2.0 Security & FinOps Mission Control Deck: Red-Team Sandbox + FinOps A/B Simulator */}
+          {/* 02: v3.0 Custom Multi-Agent Workflow DAG Builder & Node Inspector */}
+          <WorkflowDagBuilder t={t} locale={locale} />
+
+          {/* 03 & 04: v3.0 Security OWASP Top-10 Suite + Multi-Model FinOps Pareto Router Matrix */}
           <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
             <div className="xl:col-span-6">
               <RedTeamSandbox
@@ -429,11 +499,14 @@ export function App() {
             <div className="xl:col-span-6">
               <FinOpsSimulatorPanel
                 t={t}
-                routingPolicy={routingPolicy}
-                onChangeRoutingPolicy={setRoutingPolicy}
-                monthlyRuns={monthlyRuns}
-                onChangeMonthlyRuns={setMonthlyRuns}
-                simulation={finopsSimulation}
+                monthlyCalls={monthlyCalls}
+                onChangeMonthlyCalls={setMonthlyCalls}
+                cacheHitRatePct={cacheHitRatePct}
+                onChangeCacheHitRatePct={setCacheHitRatePct}
+                routerPolicy={routerPolicy}
+                onChangeRouterPolicy={setRouterPolicy}
+                matrix={multiModelMatrix}
+                branchSimulation={finopsSimulation}
                 onLaunchScenarioDFork={handleLaunchScenarioDFork}
                 onExportAuditBundle={handleExportAuditBundle}
                 auditExportedRecently={auditExportedRecently}
@@ -441,9 +514,9 @@ export function App() {
             </div>
           </div>
 
-          {/* Bottom Split Workbench: Time-Travel DAG + 3-Protocol Wire & OTel Waterfall */}
+          {/* 05 & 06: Time-Travel Checkpoint Forking & State Diff + 3-Protocol Wire & OTel Waterfall */}
           <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-12">
-            <div className="xl:col-span-5">
+            <div className="xl:col-span-6">
               <TimeTravelPanel
                 t={t}
                 run={run}
@@ -454,7 +527,7 @@ export function App() {
                 presetTriggerCount={presetTriggerCount}
               />
             </div>
-            <div className="xl:col-span-7">
+            <div id="wire-inspector-deck" className="xl:col-span-6">
               <WireInspector
                 t={t}
                 run={run}
@@ -470,11 +543,20 @@ export function App() {
       <footer className="border-t border-[var(--vg-border)] bg-[var(--vg-panel)] px-4 py-2 font-mono text-[10px] text-[var(--vg-text-dim)]">
         <div className="mx-auto flex max-w-[1720px] flex-wrap items-center justify-between gap-2">
           <span>
-            VERDICT GRAPH v2.0 // ENGINEERED BY TRUONG VAN TINH (GITHUB.COM/TVT987)
+            VERDICT GRAPH v3.0 ENTERPRISE SUPER VIP PRO // ENGINEERED BY TRUONG VAN TINH (GITHUB.COM/TVT987)
           </span>
-          <span>
-            PROTOCOLS: MCP JSON-RPC 2.0 · A2A v0.2.2 · AG-UI SSE (RFC 6902) · OPENTELEMETRY OTLP
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              PROTOCOLS: MCP JSON-RPC 2.0 · A2A v0.2.2 · AG-UI SSE (RFC 6902) · OPENTELEMETRY OTLP
+            </span>
+            <button
+              type="button"
+              onClick={() => setLicenseOpen(true)}
+              className="font-semibold text-emerald-400 hover:underline"
+            >
+              Enterprise License (19.9M VND)
+            </button>
+          </div>
         </div>
       </footer>
 
@@ -492,7 +574,16 @@ export function App() {
         onRunInstant={handleRunInstant}
         onReset={handleReset}
         onExportAuditBundle={handleExportAuditBundle}
+        onOpenLicenseModal={() => setLicenseOpen(true)}
         onJumpToSection={handleJumpToSection}
+      />
+
+      {/* Enterprise License Quote & Live MBBank VietQR Modal */}
+      <EnterpriseLicenseModal
+        open={licenseOpen}
+        t={t}
+        locale={locale}
+        onClose={() => setLicenseOpen(false)}
       />
     </div>
   );
