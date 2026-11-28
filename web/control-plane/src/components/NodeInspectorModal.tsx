@@ -428,3 +428,5 @@ export const NodeInspectorModal: React.FC<NodeInspectorModalProps> = ({
     </section>
   );
 };
+
+export default NodeInspectorModal;

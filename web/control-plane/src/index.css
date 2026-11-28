@@ -11,27 +11,27 @@
 /* Default & Daylight Studio Theme — Crisp Engineering Studio (Anthropic / LangSmith / Linear caliber) */
 :root,
 html.light {
-  --vg-bg: #f8fafc;
+  --vg-bg: #faf9f6;
   --vg-panel: #ffffff;
-  --vg-surface: #f1f5f9;
-  --vg-surface-subtle: #f8fafc;
+  --vg-surface: #f3f1ec;
+  --vg-surface-subtle: #f9f8f5;
   --vg-surface-hover: #eef2ff;
-  --vg-border: rgba(15, 23, 42, 0.09);
+  --vg-border: rgba(15, 23, 42, 0.095);
   --vg-border-strong: rgba(79, 70, 229, 0.34);
   --vg-text: #0f172a;
   --vg-text-muted: #475569;
   --vg-text-dim: #64748b;
   --vg-accent: #4f46e5;
-  --vg-accent-soft: rgba(79, 70, 229, 0.08);
+  --vg-accent-soft: rgba(79, 70, 229, 0.085);
   --vg-accent-border: rgba(79, 70, 229, 0.28);
   --vg-amber: #d97706;
   --vg-crimson: #e11d48;
   --vg-emerald: #059669;
-  --vg-grid-line: rgba(15, 23, 42, 0.045);
-  --vg-grid-dot: rgba(79, 70, 229, 0.16);
+  --vg-grid-line: rgba(15, 23, 42, 0.042);
+  --vg-grid-dot: rgba(79, 70, 229, 0.17);
   --vg-node-bg: #ffffff;
-  --vg-code-bg: #f8fafc;
-  --vg-edge-inactive: rgba(100, 116, 139, 0.3);
+  --vg-code-bg: #f6f5f1;
+  --vg-edge-inactive: rgba(100, 116, 139, 0.32);
   --vg-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px -6px rgba(15, 23, 42, 0.06);
   --vg-pill-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
@@ -185,6 +185,41 @@ html.light .text-indigo-400 {
   transform-box: fill-box;
   transform-origin: center;
   animation: nodePulseOuter 2.4s ease-in-out infinite;
+}
+
+@keyframes shieldShockwave {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.24);
+  }
+}
+
+.shield-shockwave-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: shieldShockwave 1.15s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes attackBeaconPulse {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.38;
+    transform: scale(1.42);
+  }
+}
+
+.attack-beacon-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: attackBeaconPulse 0.72s ease-in-out infinite;
 }
 
 /* Precision range slider for FinOps & Routing Arena */

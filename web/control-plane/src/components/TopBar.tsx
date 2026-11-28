@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 data-testid="version-badge"
                 className="rounded-full border border-[var(--vg-accent-border)] bg-[var(--vg-accent-soft)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--vg-accent)]"
               >
-                v5.0
+                v6.0
               </span>
             </div>
           </div>

@@ -55,9 +55,9 @@ import { ScenarioDock } from './components/ScenarioDock';
 import { ExecutionGraph } from './components/ExecutionGraph';
 import { HitlBanner } from './components/HitlBanner';
 import { VerdictOutputPanel } from './components/VerdictOutputPanel';
-import { NodeInspectorModal } from './components/NodeInspectorModal';
 
 // Code-split heavy interactive workspaces & modals via React.lazy so entry bundle stays lean (<95 kB)
+const NodeInspectorModal = lazy(() => import('./components/NodeInspectorModal'));
 const ModelRoutingArena = lazy(() => import('./components/ModelRoutingArena'));
 const PromptFirewallLab = lazy(() => import('./components/PromptFirewallLab'));
 const DagWaterfallReplay = lazy(() => import('./components/DagWaterfallReplay'));
@@ -524,14 +524,16 @@ export function App() {
                 </div>
 
                 {selectedNodeMeta && (
-                  <NodeInspectorModal
-                    t={t}
-                    run={run}
-                    node={selectedNodeMeta}
-                    checkpoint={selectedNodeCheckpoint}
-                    onSelectNode={(id) => setSelectedNodeId(id)}
-                    onClose={() => setSelectedNodeId(null)}
-                  />
+                  <Suspense fallback={null}>
+                    <NodeInspectorModal
+                      t={t}
+                      run={run}
+                      node={selectedNodeMeta}
+                      checkpoint={selectedNodeCheckpoint}
+                      onSelectNode={(id) => setSelectedNodeId(id)}
+                      onClose={() => setSelectedNodeId(null)}
+                    />
+                  </Suspense>
                 )}
 
                 {run.status === 'paused_hitl' && run.hitl_context && (
@@ -716,11 +718,11 @@ export function App() {
       <footer className="border-t border-[var(--vg-border)] bg-[var(--vg-panel)] px-4 py-3 font-mono text-[11px] text-[var(--vg-text-dim)] sm:px-6">
         <div className="mx-auto flex max-w-[1520px] flex-wrap items-center justify-between gap-2">
           <span>
-            VERDICT GRAPH v5.0 // MULTI-AGENT CONTROL PLANE BY TRUONG VAN TINH (GITHUB.COM/TVT987)
+            VERDICT GRAPH v6.0 // INTERACTIVE MULTI-AGENT VISUAL DEBUGGER &amp; CONTROL PLANE BY TRUONG VAN TINH (GITHUB.COM/TVT987)
           </span>
           <div className="flex flex-wrap items-center gap-4">
             <span className="hidden md:inline">
-              PYTHON 3.12 FASTAPI · PARETO ROUTER · OWASP LLM01-10 · MCP · A2A · AG-UI · OTLP
+              DRAG-AND-WIRE CANVAS · MID-FLIGHT ATTACK INTERCEPTOR · DUAL FORK RACE · OWASP LLM01-10 · MCP 2.0 · A2A · AG-UI
             </span>
             <button
               type="button"
